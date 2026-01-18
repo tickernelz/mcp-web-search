@@ -2,6 +2,8 @@ import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 import { extractWithReadabilityAlt } from "./extractors/readability-alt.js";
 import { htmlToMarkdown } from "./extractors/markdown.js";
+import { applySmartTruncation } from "./extractors/truncation.js";
+import type { ExtractionOptions } from "./extractors/types.js";
 
 function uaHeaders() {
   const ua = process.env.USER_AGENT || "mcp-web-search/1.0";
@@ -42,6 +44,9 @@ export interface ExtractedDoc {
   url: string;
   length?: number;
   format: "markdown" | "text";
+  truncated?: boolean;
+  original_length?: number;
+  truncation_ratio?: number;
 }
 
 function isBlockedHost(hostname: string): boolean {
@@ -76,7 +81,10 @@ function fallbackExtraction(
   }
 }
 
-export async function fetchAndExtract(url: string): Promise<ExtractedDoc> {
+export async function fetchAndExtract(
+  url: string,
+  options?: ExtractionOptions
+): Promise<ExtractedDoc> {
   const u = new URL(url);
   if (isBlockedHost(u.hostname)) {
     throw new Error("Blocked localhost/private URL");
@@ -101,12 +109,18 @@ export async function fetchAndExtract(url: string): Promise<ExtractedDoc> {
     const pdfParse: any = (await import("pdf-parse")).default;
     const data = await pdfParse(buf);
     const text = data.text || "";
+    const truncationResult = applySmartTruncation(text, "text", options);
     return {
-      text,
+      text: truncationResult.content,
       url,
       title: data.info?.Title,
       length: data.numpages,
-      format: "text"
+      format: "text",
+      truncated: truncationResult.truncated,
+      original_length: truncationResult.original_length,
+      truncation_ratio: truncationResult.truncated
+        ? truncationResult.final_length / truncationResult.original_length
+        : undefined
     };
   }
 
@@ -118,32 +132,50 @@ export async function fetchAndExtract(url: string): Promise<ExtractedDoc> {
     const markdown = htmlToMarkdown(extracted.content);
 
     if (markdown) {
+      const truncationResult = applySmartTruncation(markdown, "markdown", options);
       return {
         title: extracted.title || undefined,
-        markdown,
+        markdown: truncationResult.content,
         url,
         length: extracted.length,
-        format: "markdown"
+        format: "markdown",
+        truncated: truncationResult.truncated,
+        original_length: truncationResult.original_length,
+        truncation_ratio: truncationResult.truncated
+          ? truncationResult.final_length / truncationResult.original_length
+          : undefined
       };
     }
 
+    const truncationResult = applySmartTruncation(extracted.textContent, "text", options);
     return {
       title: extracted.title || undefined,
-      text: extracted.textContent,
+      text: truncationResult.content,
       url,
       length: extracted.length,
-      format: "text"
+      format: "text",
+      truncated: truncationResult.truncated,
+      original_length: truncationResult.original_length,
+      truncation_ratio: truncationResult.truncated
+        ? truncationResult.final_length / truncationResult.original_length
+        : undefined
     };
   }
 
   const fallback = fallbackExtraction(html, url);
+  const truncationResult = applySmartTruncation(fallback.text, "text", options);
 
   return {
     title: fallback.title,
     byline: fallback.byline,
     siteName: fallback.siteName,
-    text: fallback.text,
+    text: truncationResult.content,
     url,
-    format: "text"
+    format: "text",
+    truncated: truncationResult.truncated,
+    original_length: truncationResult.original_length,
+    truncation_ratio: truncationResult.truncated
+      ? truncationResult.final_length / truncationResult.original_length
+      : undefined
   };
 }

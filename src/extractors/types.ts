@@ -20,3 +20,27 @@ export const DEFAULT_CONFIG: ExtractConfig = {
   columnThreshold: 0.25,
   tagBoosts: { article: 1.7, main: 1.5, section: 1.3 }
 };
+
+export type TruncationMode = "compact" | "standard" | "full";
+
+export interface ExtractionOptions {
+  mode?: TruncationMode;
+  max_length?: number;
+}
+
+export interface ContentChunk {
+  content: string;
+  type: "heading" | "paragraph" | "list" | "code" | "text";
+  position: number;
+  score: number;
+  length: number;
+}
+
+export interface TruncationResult {
+  content: string;
+  truncated: boolean;
+  original_length: number;
+  final_length: number;
+  chunks_selected?: number;
+  chunks_total?: number;
+}

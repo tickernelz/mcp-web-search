@@ -95,4 +95,67 @@ describe("URL Content Extraction", () => {
       }
     }, 30000);
   });
+
+  describe("Truncation Options", () => {
+    it("should apply compact mode truncation", async () => {
+      const result = await fetchAndExtract("https://example.com", { mode: "compact" });
+
+      expect(result).toBeDefined();
+      if (result.truncated) {
+        expect(result.original_length).toBeDefined();
+        expect(result.truncation_ratio).toBeDefined();
+        const contentLength = result.markdown?.length || result.text?.length || 0;
+        expect(contentLength).toBeLessThanOrEqual(3000);
+      }
+    }, 30000);
+
+    it("should apply standard mode truncation", async () => {
+      const result = await fetchAndExtract("https://example.com", { mode: "standard" });
+
+      expect(result).toBeDefined();
+      if (result.truncated) {
+        expect(result.original_length).toBeDefined();
+        expect(result.truncation_ratio).toBeDefined();
+        const contentLength = result.markdown?.length || result.text?.length || 0;
+        expect(contentLength).toBeLessThanOrEqual(8000);
+      }
+    }, 30000);
+
+    it("should not truncate in full mode", async () => {
+      const result = await fetchAndExtract("https://example.com", { mode: "full" });
+
+      expect(result).toBeDefined();
+      expect(result.truncated).toBeFalsy();
+    }, 30000);
+
+    it("should respect custom max_length parameter", async () => {
+      const result = await fetchAndExtract("https://example.com", { max_length: 2000 });
+
+      expect(result).toBeDefined();
+      if (result.truncated) {
+        const contentLength = result.markdown?.length || result.text?.length || 0;
+        expect(contentLength).toBeLessThanOrEqual(2000);
+      }
+    }, 30000);
+
+    it("should include truncation metadata when truncated", async () => {
+      const result = await fetchAndExtract("https://example.com", { mode: "compact" });
+
+      if (result.truncated) {
+        expect(result.original_length).toBeDefined();
+        expect(result.original_length).toBeGreaterThan(0);
+        expect(result.truncation_ratio).toBeDefined();
+        expect(result.truncation_ratio).toBeGreaterThan(0);
+        expect(result.truncation_ratio).toBeLessThanOrEqual(1);
+      }
+    }, 30000);
+
+    it("should not include truncation metadata when not truncated", async () => {
+      const result = await fetchAndExtract("https://example.com", { mode: "full" });
+
+      if (!result.truncated) {
+        expect(result.truncation_ratio).toBeUndefined();
+      }
+    }, 30000);
+  });
 });

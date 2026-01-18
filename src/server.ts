@@ -36,11 +36,15 @@ server.registerTool(
   {
     title: "Fetch and Extract URL Content",
     description:
-      "Fetches content from a URL (HTML/PDF) and extracts readable text using Readability/pdf-parse.",
-    inputSchema: { url: z.string().url() }
+      "Fetches content from a URL (HTML/PDF) and extracts readable text using Readability/pdf-parse. Supports truncation modes: compact (~3000 chars, ~750 tokens), standard (~8000 chars, ~2000 tokens, default), full (no truncation).",
+    inputSchema: {
+      url: z.string().url(),
+      mode: z.enum(["compact", "standard", "full"]).optional(),
+      max_length: z.number().int().min(1000).max(100000).optional()
+    }
   },
-  async ({ url }) => {
-    const doc = await fetchAndExtract(url);
+  async ({ url, mode, max_length }) => {
+    const doc = await fetchAndExtract(url, { mode, max_length });
     return { content: [{ type: "text", text: JSON.stringify(doc, null, 2) }] };
   }
 );

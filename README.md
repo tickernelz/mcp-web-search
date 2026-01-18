@@ -1,22 +1,22 @@
 # mcp-web-search
 
-MCP server providing web search, Wikipedia summaries, and URL content extraction without requiring API keys.
+MCP server: web search, Wikipedia summaries, and URL content extraction. No API keys required.
 
-**Version:** 1.0.0
+Version: 1.0.0
 
 ## Features
 
-- **search_web** - Two-tier web search (Fast: DuckDuckGo HTML, Deep: Puppeteer/Bing)
-- **fetch_url** - Extract content from URLs (HTML/PDF) using Readability and pdf-parse
-- **summarize_url** - Fetch and summarize URL content
-- **wiki_get** - Retrieve Wikipedia summary by language
-- **wiki_multi** - Retrieve Wikipedia summaries in multiple languages
+- search_web - Two-tier web search (DuckDuckGo HTML / Puppeteer/Bing)
+- fetch_url - Extract content from URLs with semantic truncation
+- summarize_url - Fetch and summarize URL content
+- wiki_get - Wikipedia summary by language
+- wiki_multi - Wikipedia summaries in multiple languages
 
 ## Requirements
 
 - Node.js 18+
 - Windows/macOS/Linux
-- Chrome or Chromium browser (for deep search mode)
+- Chrome/Chromium (for deep search mode)
 
 ## Installation
 
@@ -24,313 +24,114 @@ MCP server providing web search, Wikipedia summaries, and URL content extraction
 npm install
 ```
 
-### Chrome/Chromium Setup
+## Chrome Installation
 
-Deep search mode requires Chrome or Chromium to be installed on your system.
+| OS | Command |
+|----|---------|
+| Ubuntu/Debian | sudo apt install chromium-browser |
+| Fedora | sudo dnf install chromium |
+| Arch | sudo pacman -S chromium |
+| macOS | brew install --cask google-chrome |
 
-**Linux:**
-```bash
-# Ubuntu/Debian
-sudo apt install chromium-browser
+Custom path: `export CHROME_PATH=/path/to/chrome`
 
-# Fedora
-sudo dnf install chromium
-
-# Arch
-sudo pacman -S chromium
-```
-
-**macOS:**
-```bash
-brew install --cask google-chrome
-```
-
-**Windows:**
-Download from [https://www.google.com/chrome/](https://www.google.com/chrome/)
-
-**Custom Chrome Path:**
-If Chrome is installed in a non-standard location, set the `CHROME_PATH` environment variable:
-```bash
-export CHROME_PATH=/path/to/chrome
-```
-
-## Development
+## Commands
 
 ```bash
-npm run dev
-```
-
-## Production
-
-```bash
-npm run build
-npm run start
+npm run dev    # Development
+npm run build  # Build
+npm run start  # Production
+npm test       # Run tests
+npm run format # Format code
 ```
 
 ## Environment Variables
 
-Configure in LM Studio or via `.env` file:
-
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `USER_AGENT` | `mcp-web-search/1.0` | User agent string for HTTP requests |
-| `HTTP_TIMEOUT` | `15000` | Timeout in milliseconds for network requests |
-| `MAX_RESULTS` | `10` | Default maximum results for search_web |
-| `LANG_DEFAULT` | `en` | Default language code |
-| `MAX_BYTES` | `20971520` | Maximum download size (20MB) for fetch_url |
-| `CHROME_PATH` | (auto-detect) | Custom path to Chrome/Chromium executable |
+| USER_AGENT | mcp-web-search/1.0 | User agent string |
+| HTTP_TIMEOUT | 15000 | Request timeout (ms) |
+| MAX_RESULTS | 10 | Default search limit |
+| LANG_DEFAULT | en | Default language |
+| MAX_BYTES | 20971520 | Max download size |
+| CHROME_PATH | auto-detect | Chrome executable path |
 
-**SSRF Protection:** `fetch_url` blocks localhost, 127.0.0.1, ::1, .local, and .localhost domains.
-
-## MCP Client Configuration
-
-Configure in your MCP client (Claude Desktop, LM Studio, etc.):
-
-**Example for LM Studio:**
-1. Open **Settings → Developer → Model Context Protocol (MCP) Servers**
-2. Click **Add**
-3. Configure:
-   - **Name:** `mcp-web-search`
-   - **Command:** `npm`
-   - **Args:** `run`, `dev` (or `start` for production)
-   - **Working directory:** Path to project directory
-   - **Environment variables:** Add variables from table above as needed
-
-**Example for Claude Desktop:**
-Add to your `claude_desktop_config.json`:
-```json
-{
-  "mcpServers": {
-    "mcp-web-search": {
-      "command": "npm",
-      "args": ["run", "dev"],
-      "cwd": "/path/to/mcp-web-search",
-      "env": {
-        "USER_AGENT": "mcp-web-search/1.0",
-        "LANG_DEFAULT": "en"
-      }
-    }
-  }
-}
-```
-
-When running successfully, logs will show: `mcp-web-search ready (stdio)...`
+SSRF Protection: Blocks localhost, 127.0.0.1, ::1, .local domains.
 
 ## Tool Reference
 
 ### search_web
 
-Two-tier web search with automatic escalation.
+Two-tier web search.
 
-**Input:**
-```typescript
-{
-  q: string;
-  limit?: number;          // 1-50, default: MAX_RESULTS env
-  lang?: string;           // default: "en"
-  mode?: "fast"|"deep"|"auto"; // default: "auto"
-}
-```
+Input: `{ q: string, limit?: number, lang?: string, mode?: "fast"|"deep"|"auto" }`
 
-**Output:**
-```typescript
-{
-  items: Array<{
-    title: string;
-    url: string;
-    snippet?: string;
-    source: "ddg_html" | "bing_puppeteer";
-  }>;
-  modeUsed: "fast"|"deep"|"auto";
-  enginesUsed: ("ddg_html"|"bing_puppeteer")[];
-  escalated: boolean;
-  diagnostics?: Record<string, unknown>;
-}
-```
+Output: `{ items: Array<{ title, url, snippet?, source }>, modeUsed, enginesUsed, escalated }`
 
-**Example:**
-```json
-{
-  "q": "Node.js LTS release schedule",
-  "mode": "fast",
-  "limit": 5,
-  "lang": "en"
-}
-```
+Example: `{ "q": "Node.js LTS", "mode": "fast", "limit": 5 }`
 
 ### fetch_url
 
-Fetch and extract readable content from URLs.
+Extract content with intelligent truncation.
 
-**Input:**
-```typescript
-{
-  url: string;  // Supports HTML and PDF
-}
-```
+Input: `{ url: string, mode?: "compact"|"standard"|"full", max_length?: number }`
 
-**Output:**
-```typescript
-{
-  text?: string;             // Plain text (only if format is "text")
-  markdown?: string;         // Markdown format (only if format is "markdown")
-  format: "markdown" | "text"; // Which format is returned
-  url: string;
-  title?: string;
-  byline?: string;
-  siteName?: string;
-  lang?: string;
-  length?: number;
-}
-```
+| Mode | Characters | Tokens | Use Case |
+|------|------------|--------|----------|
+| compact | ~3000 | ~750 | Quick summaries |
+| standard | ~8000 | ~2000 | Balanced (default) |
+| full | unlimited | - | Full content |
 
-**Example (Markdown):**
-```json
-{
-  "markdown": "# Example Domain\n\nThis domain is for use in illustrative examples...",
-  "format": "markdown",
-  "url": "https://example.com",
-  "title": "Example Domain",
-  "length": 150
-}
-```
+max_length: Exact character limit (1000-100000), overrides mode.
 
-**Example (Text fallback):**
-```json
-{
-  "text": "Example Domain This domain is for use in illustrative examples...",
-  "format": "text",
-  "url": "https://example.com",
-  "title": "Example Domain",
-  "length": 150
-}
-```
+Truncation: Semantic chunking prioritizes headings, code blocks, conclusions.
+
+Output: `{ markdown?, text?, format, url, title?, truncated?, original_length?, truncation_ratio? }`
+
+Examples:
+- `{ "url": "https://example.com", "mode": "compact" }`
+- `{ "url": "https://example.com", "max_length": 5000 }`
+- `{ "url": "https://example.com" }` (default: standard)
 
 ### summarize_url
 
-Fetch URL content and generate a concise summary.
+Fetch and summarize URL content.
 
-**Input:**
-```typescript
-{
-  url: string;
-}
-```
-
-**Behavior:**
-- Fetches content using `fetch_url`
-- Attempts to use MCP client's model (if available) to generate summary
-- Falls back to first 2000 characters if model unavailable
-
-**Example:**
-```json
-{
-  "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
-}
-```
+Input: `{ url: string }`
 
 ### wiki_get
 
-Retrieve Wikipedia summary for a specific title.
+Wikipedia summary by language.
 
-**Input:**
-```typescript
-{
-  title: string;
-  lang?: string;  // default: "en"
-}
-```
+Input: `{ title: string, lang?: string }`
 
-**Output:**
-```typescript
-{
-  lang: string;
-  title: string;
-  url: string;
-  description?: string;
-  extract?: string;
-  thumbnailUrl?: string;
-}
-```
-
-**Example:**
-```json
-{
-  "title": "Lambda calculus",
-  "lang": "en"
-}
-```
+Output: `{ lang, title, url, description?, extract?, thumbnailUrl? }`
 
 ### wiki_multi
 
-Retrieve Wikipedia summaries in multiple languages.
+Wikipedia summaries in multiple languages.
 
-**Input:**
-```typescript
-{
-  term: string;
-  baseLang?: string;      // default: "en"
-  langs?: string[];       // default: ["en"]
-}
-```
+Input: `{ term: string, baseLang?: string, langs?: string[] }`
 
-**Output:**
-```typescript
-{
-  baseLang: string;
-  base: WikiSummary;
-  items: Record<string, WikiSummary | null>;
-  resolved: Record<string, {
-    title?: string;
-    source: "base" | "langlinks" | "direct" | "none";
-  }>;
-}
-```
-
-**Example:**
-```json
-{
-  "term": "Artificial intelligence",
-  "baseLang": "en",
-  "langs": ["en", "es", "fr", "de"]
-}
-```
-
-## Quick Test Examples
+## Quick Examples
 
 ```
-search_web: { "q": "site:developer.apple.com App Intents", "mode": "deep", "limit": 5 }
-fetch_url: { "url": "https://example.com" }
-summarize_url: { "url": "https://www.python.org/dev/peps/pep-0008/" }
+search_web: { "q": "App Intents", "mode": "deep", "limit": 5 }
+fetch_url: { "url": "https://example.com", "mode": "compact" }
+summarize_url: { "url": "https://python.org/pep-8" }
 wiki_get: { "title": "Lambda calculus", "lang": "en" }
-wiki_multi: { "term": "Machine learning", "langs": ["en", "es", "fr"] }
+wiki_multi: { "term": "AI", "langs": ["en", "es", "fr"] }
 ```
 
 ## Troubleshooting
 
-**Chrome not found error**
-- Ensure Chrome or Chromium is installed on your system
-- Set `CHROME_PATH` environment variable to your Chrome executable path
-- Check installation instructions above for your operating system
-
-**CAPTCHA or temporary blocks**
-- Reduce request frequency
-- Use `mode="fast"` to avoid headless browser
-- Wait a few minutes before retrying
-
-**Chrome/Chromium not installed**
-- Deep search mode requires Chrome/Chromium
-- Install using instructions in the Installation section above
-- Or set `CHROME_PATH` to existing Chrome installation
-
-**Timeout or hanging downloads**
-- Increase `HTTP_TIMEOUT` environment variable
-- Content may exceed `MAX_BYTES` limit
-
-**Internal URLs blocked**
-- This is intentional SSRF protection
-- Only public URLs are allowed
+| Issue | Solution |
+|-------|----------|
+| Chrome not found | Install Chrome or set CHROME_PATH |
+| CAPTCHA/blocks | Reduce frequency, use fast mode |
+| Timeout | Increase HTTP_TIMEOUT, check MAX_BYTES |
+| Blocked URL | SSRF protection, public URLs only |
 
 ## License
 
-MIT - See LICENSE file for details.
+MIT
