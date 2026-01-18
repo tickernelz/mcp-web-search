@@ -1,11 +1,11 @@
 {
   "name": "@zhafron/mcp-web-search",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "type": "module",
   "description": "MCP server: DuckDuckGo HTML search, Wikipedia summaries, and URL content extraction — no API keys required.",
   "main": "dist/src/server.js",
   "bin": {
-    "mcp-web-search": "./bin.mjs"
+    "mcp-web-search": "./dist/src/server.js"
   },
   "scripts": {
     "build": "tsc -p .",
@@ -39,7 +39,6 @@
   },
   "files": [
     "dist",
-    "bin.mjs",
     "package.json",
     "README.md",
     "LICENSE"
