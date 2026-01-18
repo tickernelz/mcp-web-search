@@ -14,8 +14,8 @@ const server = new McpServer({ name: "mcp-web-search", version: "1.0.0" });
 server.registerTool(
   "search_web",
   {
-    title: "Web Search (Fast: DuckDuckGo, Deep: Playwright/Bing)",
-    description: "Two-tier web search: runs fast DuckDuckGo HTML search by default, escalates to Playwright/Bing if results are insufficient. No API keys required.",
+    title: "Web Search (Fast: DuckDuckGo, Deep: Puppeteer/Bing)",
+    description: "Two-tier web search: runs fast DuckDuckGo HTML search by default, escalates to Puppeteer/Bing if results are insufficient. No API keys required.",
     inputSchema: {
       q: z.string(),
       limit: z.number().int().min(1).max(50).default(DEFAULT_LIMIT).optional(),

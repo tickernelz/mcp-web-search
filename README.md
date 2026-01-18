@@ -6,7 +6,7 @@ MCP server providing web search, Wikipedia summaries, and URL content extraction
 
 ## Features
 
-- **search_web** - Two-tier web search (Fast: DuckDuckGo HTML, Deep: Playwright/Bing)
+- **search_web** - Two-tier web search (Fast: DuckDuckGo HTML, Deep: Puppeteer/Bing)
 - **fetch_url** - Extract content from URLs (HTML/PDF) using Readability and pdf-parse
 - **summarize_url** - Fetch and summarize URL content
 - **wiki_get** - Retrieve Wikipedia summary by language
@@ -16,13 +16,42 @@ MCP server providing web search, Wikipedia summaries, and URL content extraction
 
 - Node.js 18+
 - Windows/macOS/Linux
-- Playwright Chromium (for deep search mode)
+- Chrome or Chromium browser (for deep search mode)
 
 ## Installation
 
 ```bash
 npm install
-npx playwright install chromium
+```
+
+### Chrome/Chromium Setup
+
+Deep search mode requires Chrome or Chromium to be installed on your system.
+
+**Linux:**
+```bash
+# Ubuntu/Debian
+sudo apt install chromium-browser
+
+# Fedora
+sudo dnf install chromium
+
+# Arch
+sudo pacman -S chromium
+```
+
+**macOS:**
+```bash
+brew install --cask google-chrome
+```
+
+**Windows:**
+Download from [https://www.google.com/chrome/](https://www.google.com/chrome/)
+
+**Custom Chrome Path:**
+If Chrome is installed in a non-standard location, set the `CHROME_PATH` environment variable:
+```bash
+export CHROME_PATH=/path/to/chrome
 ```
 
 ## Development
@@ -49,6 +78,7 @@ Configure in LM Studio or via `.env` file:
 | `MAX_RESULTS` | `10` | Default maximum results for search_web |
 | `LANG_DEFAULT` | `en` | Default language code |
 | `MAX_BYTES` | `20971520` | Maximum download size (20MB) for fetch_url |
+| `CHROME_PATH` | (auto-detect) | Custom path to Chrome/Chromium executable |
 
 **SSRF Protection:** `fetch_url` blocks localhost, 127.0.0.1, ::1, .local, and .localhost domains.
 
@@ -109,10 +139,10 @@ Two-tier web search with automatic escalation.
     title: string;
     url: string;
     snippet?: string;
-    source: "ddg_html" | "bing_pw";
+    source: "ddg_html" | "bing_puppeteer";
   }>;
   modeUsed: "fast"|"deep"|"auto";
-  enginesUsed: ("ddg_html"|"bing_pw")[];
+  enginesUsed: ("ddg_html"|"bing_puppeteer")[];
   escalated: boolean;
   diagnostics?: Record<string, unknown>;
 }
@@ -172,7 +202,7 @@ Fetch URL content and generate a concise summary.
 
 **Behavior:**
 - Fetches content using `fetch_url`
-- Attempts to use LM Studio's model (if available) to generate summary
+- Attempts to use MCP client's model (if available) to generate summary
 - Falls back to first 2000 characters if model unavailable
 
 **Example:**
@@ -261,15 +291,20 @@ wiki_multi: { "term": "Machine learning", "langs": ["en", "es", "fr"] }
 
 ## Troubleshooting
 
+**Chrome not found error**
+- Ensure Chrome or Chromium is installed on your system
+- Set `CHROME_PATH` environment variable to your Chrome executable path
+- Check installation instructions above for your operating system
+
 **CAPTCHA or temporary blocks**
 - Reduce request frequency
-- Use `mode="fast"` to avoid Playwright
+- Use `mode="fast"` to avoid headless browser
 - Wait a few minutes before retrying
 
-**Playwright not installed**
-```bash
-npx playwright install chromium
-```
+**Chrome/Chromium not installed**
+- Deep search mode requires Chrome/Chromium
+- Install using instructions in the Installation section above
+- Or set `CHROME_PATH` to existing Chrome installation
 
 **Timeout or hanging downloads**
 - Increase `HTTP_TIMEOUT` environment variable

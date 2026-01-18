@@ -1,7 +1,9 @@
 import { JSDOM } from "jsdom";
+import puppeteer from "puppeteer-core";
+import { findChrome } from "./chrome.js";
 
 export type SearchMode = "fast" | "deep" | "auto";
-export type EngineName = "ddg_html" | "bing_pw";
+export type EngineName = "ddg_html" | "bing_puppeteer";
 
 export interface SearchItem {
   title: string;
@@ -79,41 +81,72 @@ async function ddgHtmlSearch(q: string, limit: number, lang: string): Promise<Se
   return items;
 }
 
-async function bingPlaywrightSearch(q: string, limit: number, lang: string): Promise<SearchItem[]> {
-  const { chromium } = await import("playwright");
-  const browser = await chromium.launch({ headless: true });
-  const context = await browser.newContext({
-    locale: lang === "en" ? "en-US" : `${lang}-${lang.toUpperCase()}`,
-    userAgent: (process.env.USER_AGENT || "mcp-web-search/1.0") + " Playwright",
+async function bingPuppeteerSearch(q: string, limit: number, lang: string): Promise<SearchItem[]> {
+  const chromePath = findChrome();
+  const browser = await puppeteer.launch({
+    executablePath: chromePath,
+    headless: true,
+    args: [
+      "--no-sandbox",
+      "--disable-setuid-sandbox",
+      "--disable-dev-shm-usage",
+      "--disable-accelerated-2d-canvas",
+      "--no-first-run",
+      "--no-zygote",
+      "--disable-gpu"
+    ]
   });
+
   try {
-    const page = await context.newPage();
+    const page = await browser.newPage();
+    await page.setUserAgent((process.env.USER_AGENT || "mcp-web-search/1.0") + " Puppeteer");
+    await page.setExtraHTTPHeaders({
+      "Accept-Language": lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`
+    });
+
     const url = new URL("https://www.bing.com/search");
     url.searchParams.set("q", q);
     if (lang) url.searchParams.set("setlang", lang);
+
     await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
-    const results: SearchItem[] = [];
-    const cards = await page.$$("li.b_algo");
-    for (const card of cards) {
-      const a = await card.$("h2 a");
-      if (!a) continue;
-      const title = (await a.textContent())?.trim() || "";
-      const href = await a.getAttribute("href");
-      if (!href || !title) continue;
-      let snippet = (await card.$eval("div.b_caption p", el => (el as HTMLElement).textContent || "").catch(() => "")) as string;
-      if (!snippet) {
-        snippet = await card.$eval("div.b_snippet", el => (el as HTMLElement).textContent || "").catch(() => "") as string;
+
+    const results = await page.evaluate((maxResults) => {
+      const items: Array<{ title: string; url: string; snippet?: string }> = [];
+      const cards = document.querySelectorAll("li.b_algo");
+
+      for (const card of Array.from(cards)) {
+        const anchor = card.querySelector("h2 a");
+        if (!anchor) continue;
+
+        const title = anchor.textContent?.trim() || "";
+        const href = anchor.getAttribute("href");
+        if (!href || !title) continue;
+
+        let snippet = "";
+        const captionP = card.querySelector("div.b_caption p");
+        if (captionP) {
+          snippet = captionP.textContent?.trim() || "";
+        } else {
+          const snippetDiv = card.querySelector("div.b_snippet");
+          if (snippetDiv) {
+            snippet = snippetDiv.textContent?.trim() || "";
+          }
+        }
+
+        try {
+          new URL(href);
+          items.push({ title, url: href, snippet: snippet || undefined });
+        } catch {}
+
+        if (items.length >= maxResults) break;
       }
-      try {
-        const u = new URL(href);
-        results.push({ title, url: u.toString(), snippet: snippet?.trim() || undefined, source: "bing_pw" });
-      } catch {}
-      if (results.length >= limit) break;
-    }
-    return results;
+
+      return items;
+    }, limit);
+
+    return results.map(r => ({ ...r, source: "bing_puppeteer" as EngineName }));
   } finally {
-    await context.close().catch(() => {});
-    await browser.close().catch(() => {});
+    await browser.close();
   }
 }
 
@@ -138,8 +171,8 @@ export async function runTwoTierSearch(opts: { q: string; limit?: number; lang?:
   }
 
   if (mode === "deep") {
-    const deep = await bingPlaywrightSearch(q, limit, lang);
-    enginesUsed.push("bing_pw");
+    const deep = await bingPuppeteerSearch(q, limit, lang);
+    enginesUsed.push("bing_puppeteer");
     diagnostics["deepCount"] = deep.length;
     return { items: deep, modeUsed: "deep", enginesUsed, escalated: false, diagnostics };
   }
@@ -148,8 +181,8 @@ export async function runTwoTierSearch(opts: { q: string; limit?: number; lang?:
   enginesUsed.push("ddg_html");
   diagnostics["fastCount"] = fast.length;
   if (fast.length < Math.min(3, limit)) {
-    const deep = await bingPlaywrightSearch(q, limit, lang);
-    enginesUsed.push("bing_pw");
+    const deep = await bingPuppeteerSearch(q, limit, lang);
+    enginesUsed.push("bing_puppeteer");
     diagnostics["deepCount"] = deep.length;
     return { items: [...fast, ...deep].slice(0, limit), modeUsed: "auto", enginesUsed, escalated: true, diagnostics };
   }
