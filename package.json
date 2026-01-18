@@ -1,9 +1,9 @@
 {
-  "name": "mcp-web-search",
+  "name": "@zhafron/mcp-web-search",
   "version": "1.0.0",
   "type": "module",
-  "private": true,
   "description": "MCP server: DuckDuckGo HTML search, Wikipedia summaries, and URL content extraction — no API keys required.",
+  "main": "dist/src/server.js",
   "scripts": {
     "build": "tsc -p .",
     "start": "node dist/src/server.js",
@@ -13,6 +13,33 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\" \"test/**/*.ts\""
   },
+  "keywords": [
+    "mcp",
+    "modelcontextprotocol",
+    "web",
+    "search",
+    "extraction",
+    "html",
+    "pdf",
+    "readability",
+    "turndown",
+    "ai"
+  ],
+  "author": "tickernelz",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/tickernelz/mcp-web-search.git"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "dist",
+    "package.json",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.17.0",
     "@mozilla/readability": "^0.6.0",
