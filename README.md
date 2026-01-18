@@ -1,4 +1,7 @@
 # MCP Web Search
+[![npm version](https://img.shields.io/npm/v/@zhafron/mcp-web-search)](https://www.npmjs.com/package/@zhafron/mcp-web-search)
+[![npm downloads](https://img.shields.io/npm/dm/@zhafron/mcp-web-search)](https://www.npmjs.com/package/@zhafron/mcp-web-search)
+[![license](https://img.shields.io/npm/l/@zhafron/mcp-web-search)](https://www.npmjs.com/package/@zhafron/mcp-web-search)
 
 MCP server: web search, Wikipedia summaries, and URL content extraction. No API keys required.
 
