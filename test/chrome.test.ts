@@ -19,19 +19,19 @@ describe("Chrome Detection", () => {
     const originalPath = process.env.CHROME_PATH;
     const testPath = "/fake/chrome/path";
     process.env.CHROME_PATH = testPath;
-    
+
     expect(() => findChrome()).toThrow(ChromeNotFoundError);
     expect(() => findChrome()).toThrow(/not found at CHROME_PATH/);
-    
+
     process.env.CHROME_PATH = originalPath;
   });
 
   it("should throw ChromeNotFoundError when Chrome not found", () => {
     const originalPath = process.env.CHROME_PATH;
     process.env.CHROME_PATH = "/nonexistent/path";
-    
+
     expect(() => findChrome()).toThrow(ChromeNotFoundError);
-    
+
     process.env.CHROME_PATH = originalPath;
   });
 });

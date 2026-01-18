@@ -7,11 +7,34 @@ describe("URL Content Extraction", () => {
       const result = await fetchAndExtract("https://example.com");
 
       expect(result).toBeDefined();
-      expect(result).toHaveProperty("text");
       expect(result).toHaveProperty("url");
+      expect(result).toHaveProperty("format");
       expect(result.url).toBe("https://example.com");
-      expect(typeof result.text).toBe("string");
-      expect(result.text.length).toBeGreaterThan(0);
+
+      if (result.format === "markdown") {
+        expect(result.markdown).toBeDefined();
+        expect(typeof result.markdown).toBe("string");
+        expect(result.markdown!.length).toBeGreaterThan(0);
+      } else {
+        expect(result.text).toBeDefined();
+        expect(typeof result.text).toBe("string");
+        expect(result.text!.length).toBeGreaterThan(0);
+      }
+    }, 30000);
+
+    it("should return markdown format by default", async () => {
+      const result = await fetchAndExtract("https://example.com");
+
+      expect(result.format).toBeDefined();
+      expect(["markdown", "text"]).toContain(result.format);
+      if (result.format === "markdown") {
+        expect(result.markdown).toBeDefined();
+        expect(typeof result.markdown).toBe("string");
+        expect(result.text).toBeUndefined();
+      } else {
+        expect(result.text).toBeDefined();
+        expect(result.markdown).toBeUndefined();
+      }
     }, 30000);
 
     it("should extract title from HTML", async () => {
@@ -47,12 +70,29 @@ describe("URL Content Extraction", () => {
   });
 
   describe("Content Structure", () => {
-    it("should return proper structure", async () => {
+    it("should return proper structure with format field", async () => {
       const result = await fetchAndExtract("https://example.com");
 
-      expect(result).toHaveProperty("text");
       expect(result).toHaveProperty("url");
       expect(result).toHaveProperty("title");
+      expect(result).toHaveProperty("format");
+      expect(["markdown", "text"]).toContain(result.format);
+    }, 30000);
+
+    it("should have content field based on format", async () => {
+      const result = await fetchAndExtract("https://example.com");
+
+      if (result.format === "markdown") {
+        expect(result.markdown).toBeDefined();
+        expect(typeof result.markdown).toBe("string");
+        expect(result.markdown!.length).toBeGreaterThan(0);
+        expect(result.text).toBeUndefined();
+      } else {
+        expect(result.text).toBeDefined();
+        expect(typeof result.text).toBe("string");
+        expect(result.text!.length).toBeGreaterThan(0);
+        expect(result.markdown).toBeUndefined();
+      }
     }, 30000);
   });
 });

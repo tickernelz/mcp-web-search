@@ -1,4 +1,4 @@
-declare module 'pdf-parse' {
+declare module "pdf-parse" {
   const pdfParse: any;
   export default pdfParse;
 }

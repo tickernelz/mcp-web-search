@@ -15,12 +15,13 @@ server.registerTool(
   "search_web",
   {
     title: "Web Search (Fast: DuckDuckGo, Deep: Puppeteer/Bing)",
-    description: "Two-tier web search: runs fast DuckDuckGo HTML search by default, escalates to Puppeteer/Bing if results are insufficient. No API keys required.",
+    description:
+      "Two-tier web search: runs fast DuckDuckGo HTML search by default, escalates to Puppeteer/Bing if results are insufficient. No API keys required.",
     inputSchema: {
       q: z.string(),
       limit: z.number().int().min(1).max(50).default(DEFAULT_LIMIT).optional(),
       lang: z.string().default("en").optional(),
-      mode: z.enum(["fast","deep","auto"]).default("auto").optional()
+      mode: z.enum(["fast", "deep", "auto"]).default("auto").optional()
     }
   },
   async ({ q, limit = DEFAULT_LIMIT, lang = "en", mode = "auto" }) => {
@@ -34,7 +35,8 @@ server.registerTool(
   "fetch_url",
   {
     title: "Fetch and Extract URL Content",
-    description: "Fetches content from a URL (HTML/PDF) and extracts readable text using Readability/pdf-parse.",
+    description:
+      "Fetches content from a URL (HTML/PDF) and extracts readable text using Readability/pdf-parse.",
     inputSchema: { url: z.string().url() }
   },
   async ({ url }) => {
@@ -53,15 +55,19 @@ server.registerTool(
   async ({ url }) => {
     const doc = await fetchAndExtract(url);
     try {
-      const prompt = `Provide a concise summary (<=10 sentences) of the following content:\n\nTitle: ${doc.title || "(none)"}\nURL: ${doc.url}\n\n--- Content ---\n${doc.text.slice(0, 12000)}`;
+      const content = doc.markdown || doc.text || "";
+      const prompt = `Provide a concise summary (<=10 sentences) of the following content:\n\nTitle: ${doc.title || "(none)"}\nURL: ${doc.url}\n\n--- Content ---\n${content.slice(0, 12000)}`;
       const resp = await (server as any).server.createMessage({
         messages: [{ role: "user", content: { type: "text", text: prompt } }],
         maxTokens: 800
       });
-      const text = resp.content && resp.content.type === "text" ? resp.content.text : "(unable to generate summary)";
+      const text =
+        resp.content && resp.content.type === "text"
+          ? resp.content.text
+          : "(unable to generate summary)";
       return { content: [{ type: "text", text }] };
     } catch {
-      const fallback = (doc.text || "").slice(0, 2000);
+      const fallback = (doc.markdown || doc.text || "").slice(0, 2000);
       return { content: [{ type: "text", text: fallback || "(no content to summarize)" }] };
     }
   }
@@ -71,7 +77,8 @@ server.registerTool(
   "wiki_get",
   {
     title: "Wikipedia: Get Summary",
-    description: "Retrieves a Wikipedia summary for a given title. Supports multiple languages (default: en).",
+    description:
+      "Retrieves a Wikipedia summary for a given title. Supports multiple languages (default: en).",
     inputSchema: { title: z.string(), lang: z.string().default("en").optional() }
   },
   async ({ title, lang = "en" }) => {
@@ -85,12 +92,13 @@ server.registerTool(
   "wiki_multi",
   {
     title: "Wikipedia: Multi-Language Summary",
-    description: "Retrieves Wikipedia summaries in multiple languages for a given term. Uses langlinks to map titles accurately across languages.",
+    description:
+      "Retrieves Wikipedia summaries in multiple languages for a given term. Uses langlinks to map titles accurately across languages.",
     inputSchema: {
       term: z.string(),
       baseLang: z.string().default("en").optional(),
       langs: z.array(z.string()).default(["en"]).optional()
-    },
+    }
   },
   async ({ term, baseLang = "en", langs = ["en"] }) => {
     const { wikiGetMultiSummary } = await import("./wikipedia.js");
@@ -105,4 +113,7 @@ async function main() {
   console.error("mcp-web-search ready (stdio)...");
 }
 
-main().catch(err => { console.error(err); process.exit(1); });
+main().catch(err => {
+  console.error(err);
+  process.exit(1);
+});

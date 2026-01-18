@@ -172,7 +172,9 @@ Fetch and extract readable content from URLs.
 **Output:**
 ```typescript
 {
-  text: string;
+  text?: string;             // Plain text (only if format is "text")
+  markdown?: string;         // Markdown format (only if format is "markdown")
+  format: "markdown" | "text"; // Which format is returned
   url: string;
   title?: string;
   byline?: string;
@@ -182,10 +184,25 @@ Fetch and extract readable content from URLs.
 }
 ```
 
-**Example:**
+**Example (Markdown):**
 ```json
 {
-  "url": "https://example.com/article"
+  "markdown": "# Example Domain\n\nThis domain is for use in illustrative examples...",
+  "format": "markdown",
+  "url": "https://example.com",
+  "title": "Example Domain",
+  "length": 150
+}
+```
+
+**Example (Text fallback):**
+```json
+{
+  "text": "Example Domain This domain is for use in illustrative examples...",
+  "format": "text",
+  "url": "https://example.com",
+  "title": "Example Domain",
+  "length": 150
 }
 ```
 

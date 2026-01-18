@@ -31,7 +31,11 @@ function toMs(env: string | undefined, def: number) {
   return Number.isFinite(n) && n > 0 ? n : def;
 }
 
-async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}, timeoutMs = 15000): Promise<Response> {
+async function fetchWithTimeout(
+  input: RequestInfo | URL,
+  init: RequestInit = {},
+  timeoutMs = 15000
+): Promise<Response> {
   const controller = new AbortController();
   const t = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -110,7 +114,7 @@ async function bingPuppeteerSearch(q: string, limit: number, lang: string): Prom
 
     await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
 
-    const results = await page.evaluate((maxResults) => {
+    const results = await page.evaluate(maxResults => {
       const items: Array<{ title: string; url: string; snippet?: string }> = [];
       const cards = document.querySelectorAll("li.b_algo");
 
@@ -150,7 +154,13 @@ async function bingPuppeteerSearch(q: string, limit: number, lang: string): Prom
   }
 }
 
-export async function runTwoTierSearch(opts: { q: string; limit?: number; lang?: string; mode?: SearchMode; timeoutMs?: number }): Promise<SearchResponse> {
+export async function runTwoTierSearch(opts: {
+  q: string;
+  limit?: number;
+  lang?: string;
+  mode?: SearchMode;
+  timeoutMs?: number;
+}): Promise<SearchResponse> {
   const { q } = opts;
   const limit = Math.max(
     1,
@@ -184,7 +194,13 @@ export async function runTwoTierSearch(opts: { q: string; limit?: number; lang?:
     const deep = await bingPuppeteerSearch(q, limit, lang);
     enginesUsed.push("bing_puppeteer");
     diagnostics["deepCount"] = deep.length;
-    return { items: [...fast, ...deep].slice(0, limit), modeUsed: "auto", enginesUsed, escalated: true, diagnostics };
+    return {
+      items: [...fast, ...deep].slice(0, limit),
+      modeUsed: "auto",
+      enginesUsed,
+      escalated: true,
+      diagnostics
+    };
   }
   return { items: fast, modeUsed: "auto", enginesUsed, escalated: false, diagnostics };
 }
