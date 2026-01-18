@@ -13,11 +13,11 @@ jobs:
 
       - uses: oven-sh/setup-bun@v2
 
-      - run: bun install
+      - run: npm install
 
-      - run: bun run typecheck
-
-      - run: bun run build
+      - run: npm run test
+  
+      - run: npm run build
 
       - name: Setup Node.js for npm publish
         uses: actions/setup-node@v4
