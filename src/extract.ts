@@ -1,11 +1,10 @@
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
 
-/** Build UA + language headers */
 function uaHeaders() {
-  const ua = process.env.USER_AGENT || "mcp-web-calc/0.2";
-  const lang = process.env.LANG_DEFAULT || "vi";
-  const accept = lang === "vi" ? "vi-VN,vi;q=0.9,en;q=0.8" : "en-US,en;q=0.9";
+  const ua = process.env.USER_AGENT || "mcp-web-search/1.0";
+  const lang = process.env.LANG_DEFAULT || "en";
+  const accept = lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`;
   return { "User-Agent": ua, "Accept-Language": accept } as Record<string, string>;
 }
 
@@ -25,7 +24,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
 }
 
 const HTTP_TIMEOUT = toMs(process.env.HTTP_TIMEOUT, 15000);
-const MAX_BYTES = toMs(process.env.MAX_BYTES, 20 * 1024 * 1024); // allow override via env
+const MAX_BYTES = toMs(process.env.MAX_BYTES, 20 * 1024 * 1024);
 
 export interface ExtractedDoc {
   title?: string;
@@ -40,7 +39,6 @@ export interface ExtractedDoc {
 function isBlockedHost(hostname: string): boolean {
   const lower = hostname.toLowerCase();
   if (lower === "localhost" || lower === "127.0.0.1" || lower === "::1") return true;
-  // also block common local dev TLDs
   if (lower.endsWith(".local") || lower.endsWith(".localhost")) return true;
   return false;
 }

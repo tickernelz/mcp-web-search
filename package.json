@@ -1,9 +1,9 @@
-﻿{
-  "name": "mcp-web-calc",
-  "version": "0.3.0",
+{
+  "name": "mcp-web-search",
+  "version": "1.0.0",
   "type": "module",
   "private": true,
-  "description": "LM Studio MCP server: DuckDuckGo HTML search, Wikipedia summary, URL extract, and a precise calculator \u2014 no API keys.",
+  "description": "MCP server: DuckDuckGo HTML search, Wikipedia summaries, and URL content extraction — no API keys required.",
   "scripts": {
     "build": "tsc -p .",
     "start": "node dist/src/server.js",
@@ -14,7 +14,6 @@
     "@modelcontextprotocol/sdk": "^1.17.0",
     "@mozilla/readability": "^0.6.0",
     "jsdom": "^24.1.0",
-    "mathjs": "^13.0.0",
     "pdf-parse": "^1.1.1",
     "zod": "^3.23.8",
     "playwright": "^1.46.0"
@@ -26,3 +25,4 @@
     "typescript": "^5.5.4"
   }
 }
+

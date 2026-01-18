@@ -1,4 +1,3 @@
-// src/engines.ts — two-tier search: fast (DuckDuckGo HTML) -> deep (Bing via Playwright)
 import { JSDOM } from "jsdom";
 
 export type SearchMode = "fast" | "deep" | "auto";
@@ -19,9 +18,9 @@ export interface SearchResponse {
   diagnostics?: Record<string, unknown>;
 }
 
-function uaHeaders(lang = process.env.LANG_DEFAULT || "vi") {
-  const ua = process.env.USER_AGENT || "mcp-web-calc/0.2";
-  const acceptLang = lang === "vi" ? "vi-VN,vi;q=0.9,en;q=0.8" : "en-US,en;q=0.9";
+function uaHeaders(lang = process.env.LANG_DEFAULT || "en") {
+  const ua = process.env.USER_AGENT || "mcp-web-search/1.0";
+  const acceptLang = lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`;
   return { "User-Agent": ua, "Accept-Language": acceptLang } as Record<string, string>;
 }
 
@@ -84,14 +83,14 @@ async function bingPlaywrightSearch(q: string, limit: number, lang: string): Pro
   const { chromium } = await import("playwright");
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
-    locale: lang === "vi" ? "vi-VN" : "en-US",
-    userAgent: (process.env.USER_AGENT || "mcp-web-calc/0.2") + " Playwright",
+    locale: lang === "en" ? "en-US" : `${lang}-${lang.toUpperCase()}`,
+    userAgent: (process.env.USER_AGENT || "mcp-web-search/1.0") + " Playwright",
   });
   try {
     const page = await context.newPage();
     const url = new URL("https://www.bing.com/search");
     url.searchParams.set("q", q);
-    if (lang) url.searchParams.set("setlang", lang === "vi" ? "vi" : "en");
+    if (lang) url.searchParams.set("setlang", lang);
     await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
     const results: SearchItem[] = [];
     const cards = await page.$$("li.b_algo");
@@ -125,7 +124,7 @@ export async function runTwoTierSearch(opts: { q: string; limit?: number; lang?:
     Math.min(Number(opts.limit ?? (Number(process.env.MAX_RESULTS) || 10)), 50)
   );
 
-  const lang = opts.lang ?? (process.env.LANG_DEFAULT || "vi");
+  const lang = opts.lang ?? (process.env.LANG_DEFAULT || "en");
   const mode = opts.mode ?? "auto";
 
   const enginesUsed: EngineName[] = [];
@@ -145,7 +144,6 @@ export async function runTwoTierSearch(opts: { q: string; limit?: number; lang?:
     return { items: deep, modeUsed: "deep", enginesUsed, escalated: false, diagnostics };
   }
 
-  // auto: run fast first, then escalate to deep if too few
   const fast = await ddgHtmlSearch(q, limit, lang);
   enginesUsed.push("ddg_html");
   diagnostics["fastCount"] = fast.length;

@@ -7,10 +7,9 @@ export interface WikiSummary {
   thumbnailUrl?: string;
 }
 
-// Single entry point: get summary for a Wikipedia title
-function uaHeaders(lang = process.env.LANG_DEFAULT || "vi") {
-  const ua = process.env.USER_AGENT || "mcp-web-calc/0.2";
-  const accept = lang === "vi" ? "vi-VN,vi;q=0.9,en;q=0.8" : "en-US,en;q=0.9";
+function uaHeaders(lang = process.env.LANG_DEFAULT || "en") {
+  const ua = process.env.USER_AGENT || "mcp-web-search/1.0";
+  const accept = lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`;
   return { "User-Agent": ua, "Accept-Language": accept } as Record<string, string>;
 }
 
@@ -29,7 +28,7 @@ async function fetchWithTimeout(input: RequestInfo | URL, init: RequestInit = {}
   }
 }
 
-export async function wikiGetSummary(title: string, lang: string = "vi"): Promise<WikiSummary> {
+export async function wikiGetSummary(title: string, lang: string = "en"): Promise<WikiSummary> {
   const base = `https://${lang}.wikipedia.org`;
   const sumUrl = new URL(`${base}/api/rest_v1/page/summary/${encodeURIComponent(title)}`);
   try {
@@ -50,8 +49,6 @@ export async function wikiGetSummary(title: string, lang: string = "vi"): Promis
     return { lang, title, url: `${base}/wiki/${encodeURIComponent(title)}` };
   }
 }
-
-// === wiki_multi helpers (append to end of src/wikipedia.ts) ===
 
 async function wikiGetLanglinks(baseTitle: string, baseLang: string): Promise<Record<string, string>> {
   const base = `https://${baseLang}.wikipedia.org/w/api.php`;
@@ -83,7 +80,7 @@ export interface WikiMultiSummary {
   resolved: Record<string, { title?: string; source: "base" | "langlinks" | "direct" | "none" }>;
 }
 
-export async function wikiGetMultiSummary(term: string, baseLang: string = "vi", langs: string[] = ["vi","en"]): Promise<WikiMultiSummary> {
+export async function wikiGetMultiSummary(term: string, baseLang: string = "en", langs: string[] = ["en"]): Promise<WikiMultiSummary> {
   const want = Array.from(new Set(langs.map(s => s.trim().toLowerCase()).filter(Boolean)));
   if (!want.includes(baseLang)) want.unshift(baseLang);
 
@@ -113,7 +110,3 @@ export async function wikiGetMultiSummary(term: string, baseLang: string = "vi",
   await Promise.all(tasks);
   return { baseLang, base, items, resolved };
 }
-
-// === end wiki_multi helpers ===
-
-

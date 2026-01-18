@@ -3,41 +3,38 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { runTwoTierSearch, type EngineName } from "./engines.js";
 import { fetchAndExtract } from "./extract.js";
-import { evaluateExpression } from "./math.js";
 
 const toInt = (v: string | undefined, def: number) => {
   const n = Number(v);
   return Number.isFinite(n) && n > 0 ? Math.floor(n) : def;
 };
 const DEFAULT_LIMIT = toInt(process.env.MAX_RESULTS, 10);
-const server = new McpServer({ name: "mcp-web-calc", version: "0.3.0" });
+const server = new McpServer({ name: "mcp-web-search", version: "1.0.0" });
 
-// 1) search_web (two-tier: fast -> deep)
 server.registerTool(
   "search_web",
   {
-    title: "Tìm web (Nhanh: DuckDuckGo, Sâu: Playwright/Bing)",
-    description: "Mặc định chạy nhanh bằng DuckDuckGo HTML; nếu kết quả chưa đủ tốt sẽ chuyển sang Playwright (Bing). Không dùng API key.",
+    title: "Web Search (Fast: DuckDuckGo, Deep: Playwright/Bing)",
+    description: "Two-tier web search: runs fast DuckDuckGo HTML search by default, escalates to Playwright/Bing if results are insufficient. No API keys required.",
     inputSchema: {
       q: z.string(),
       limit: z.number().int().min(1).max(50).default(DEFAULT_LIMIT).optional(),
-      lang: z.string().default("vi").optional(),
+      lang: z.string().default("en").optional(),
       mode: z.enum(["fast","deep","auto"]).default("auto").optional()
     }
   },
-  async ({ q, limit = DEFAULT_LIMIT, lang = "vi", mode = "auto" }) => {
+  async ({ q, limit = DEFAULT_LIMIT, lang = "en", mode = "auto" }) => {
     const res = await runTwoTierSearch({ q, limit: Math.min(Math.max(1, limit), 50), lang, mode });
     const payload = { ...res, items: res.items.slice(0, limit) };
     return { content: [{ type: "text", text: JSON.stringify(payload, null, 2) }] };
   }
 );
 
-// 2) fetch_url
 server.registerTool(
   "fetch_url",
   {
-    title: "Tải & trích xuất URL",
-    description: "Tải nội dung một URL (HTML/PDF) và trích xuất text bằng Readability/pdf-parse.",
+    title: "Fetch and Extract URL Content",
+    description: "Fetches content from a URL (HTML/PDF) and extracts readable text using Readability/pdf-parse.",
     inputSchema: { url: z.string().url() }
   },
   async ({ url }) => {
@@ -46,80 +43,56 @@ server.registerTool(
   }
 );
 
-// 3) summarize_url — dùng host LLM (qua MCP) nếu có, fallback trả văn bản rút gọn.
 server.registerTool(
   "summarize_url",
   {
-    title: "Tóm tắt URL",
-    description: "Lấy nội dung từ URL và tóm tắt ngắn gọn.",
+    title: "Summarize URL Content",
+    description: "Fetches content from a URL and generates a concise summary.",
     inputSchema: { url: z.string().url() }
   },
   async ({ url }) => {
     const doc = await fetchAndExtract(url);
-    // Thử dùng server-side model nếu có.
     try {
-      const prompt = `Tóm tắt ngắn gọn (tiếng Việt) nội dung sau (<= 10 câu):\n\nTiêu đề: ${doc.title || "(không có)"}\nURL: ${doc.url}\n\n--- Nội dung ---\n${doc.text.slice(0, 12000)}`;
-      // @ts-ignore - McpServer has .server.createMessage in LM Studio environment
+      const prompt = `Provide a concise summary (<=10 sentences) of the following content:\n\nTitle: ${doc.title || "(none)"}\nURL: ${doc.url}\n\n--- Content ---\n${doc.text.slice(0, 12000)}`;
       const resp = await (server as any).server.createMessage({
         messages: [{ role: "user", content: { type: "text", text: prompt } }],
         maxTokens: 800
       });
-      const text = resp.content && resp.content.type === "text" ? resp.content.text : "(không tạo được tóm tắt)";
+      const text = resp.content && resp.content.type === "text" ? resp.content.text : "(unable to generate summary)";
       return { content: [{ type: "text", text }] };
     } catch {
-      // Fallback: trả 2k ký tự đầu
       const fallback = (doc.text || "").slice(0, 2000);
-      return { content: [{ type: "text", text: fallback || "(không có nội dung để tóm tắt)" }] };
+      return { content: [{ type: "text", text: fallback || "(no content to summarize)" }] };
     }
   }
 );
 
-// 4) math_eval
-server.registerTool(
-  "math_eval",
-  {
-    title: "Tính toán (độ chính xác cao)",
-    description: "Đánh giá biểu thức với BigNumber hoặc Fraction để tránh lỗi số chấm động.",
-    inputSchema: {
-      expression: z.string(),
-      mode: z.enum(["number","BigNumber","Fraction"]).default("BigNumber").optional(),
-      precision: z.number().int().min(16).max(256).default(64).optional()
-    }
-  },
-  async ({ expression, mode = "BigNumber", precision = 64 }) => {
-    const out = evaluateExpression(expression, mode, precision);
-    return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
-  }
-);
-
-// 5) wiki_get
 server.registerTool(
   "wiki_get",
   {
-    title: "Wikipedia: lấy tóm tắt",
-    description: "Lấy tóm tắt cho một tiêu đề Wikipedia. Hỗ trợ lang (mặc định: vi).",
-    inputSchema: { title: z.string(), lang: z.string().default("vi").optional() }
+    title: "Wikipedia: Get Summary",
+    description: "Retrieves a Wikipedia summary for a given title. Supports multiple languages (default: en).",
+    inputSchema: { title: z.string(), lang: z.string().default("en").optional() }
   },
-  async ({ title, lang = "vi" }) => {
+  async ({ title, lang = "en" }) => {
     const { wikiGetSummary } = await import("./wikipedia.js");
     const summary = await wikiGetSummary(title, lang);
     return { content: [{ type: "text", text: JSON.stringify(summary, null, 2) }] };
   }
 );
 
-// 6) wiki_multi — lấy nhiều ngôn ngữ & tổng hợp
 server.registerTool(
   "wiki_multi",
   {
-    title: "Wikipedia: đa ngôn ngữ (nhiều lang)",
-    description: "Nhập term, baseLang (mặc định 'vi') và danh sách langs cần lấy tóm tắt. Ưu tiên langlinks để map tiêu đề chính xác.",
+    title: "Wikipedia: Multi-Language Summary",
+    description: "Retrieves Wikipedia summaries in multiple languages for a given term. Uses langlinks to map titles accurately across languages.",
     inputSchema: {
       term: z.string(),
-      baseLang: z.string().default("vi").optional(),
-      langs: z.array(z.string()).default(["vi","en"]).optional()
+      baseLang: z.string().default("en").optional(),
+      langs: z.array(z.string()).default(["en"]).optional()
     },
   },
-  async ({ term, baseLang = "vi", langs = ["vi","en"] }) => {
+  async ({ term, baseLang = "en", langs = ["en"] }) => {
     const { wikiGetMultiSummary } = await import("./wikipedia.js");
     const out = await wikiGetMultiSummary(term, baseLang, langs);
     return { content: [{ type: "text", text: JSON.stringify(out, null, 2) }] };
@@ -129,8 +102,7 @@ server.registerTool(
 async function main() {
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("mcp-web-calc ready (stdio)…");
+  console.error("mcp-web-search ready (stdio)...");
 }
 
 main().catch(err => { console.error(err); process.exit(1); });
-

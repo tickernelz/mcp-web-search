@@ -1,97 +1,146 @@
-# mcp-web-calc — MCP server cho LM Studio (không cần API key)
+# mcp-web-search
 
-**Phiên bản:** 0.3.0
+MCP server providing web search, Wikipedia summaries, and URL content extraction without requiring API keys.
 
-**6 công cụ tích hợp**
-- `search_web` — Tìm web hai tầng (Nhanh: DuckDuckGo HTML → Sâu: Playwright/Bing)
-- `fetch_url` — Tải & trích xuất nội dung từ URL/HTML/PDF (Readability + pdf-parse)
-- `summarize_url` — Lấy nội dung từ URL rồi tóm tắt ngắn gọn
-- `math_eval` — Máy tính chính xác (Number / BigNumber / Fraction)
-- `wiki_get` — Lấy tóm tắt 1 trang Wikipedia theo ngôn ngữ
-- `wiki_multi` — Lấy tóm tắt Wikipedia theo **nhiều ngôn ngữ** trong một lần gọi
+**Version:** 1.0.0
 
-> Không dùng API key. Hoạt động hoàn toàn qua MCP/stdio.
+## Features
 
----
+- **search_web** - Two-tier web search (Fast: DuckDuckGo HTML, Deep: Playwright/Bing)
+- **fetch_url** - Extract content from URLs (HTML/PDF) using Readability and pdf-parse
+- **summarize_url** - Fetch and summarize URL content
+- **wiki_get** - Retrieve Wikipedia summary by language
+- **wiki_multi** - Retrieve Wikipedia summaries in multiple languages
 
-## Yêu cầu
+## Requirements
+
 - Node.js 18+
 - Windows/macOS/Linux
-- (Tìm kiếm sâu) **Playwright Chromium**
+- Playwright Chromium (for deep search mode)
 
-## Cài đặt
+## Installation
+
 ```bash
-npm i
-npx playwright install chromium   # cần cho 'deep' (Bing/Playwright)
-# Dev:
+npm install
+npx playwright install chromium
+```
+
+## Development
+
+```bash
 npm run dev
-# hoặc build & chạy prod:
-npm run build && npm run start
 ```
 
-## Biến môi trường (khuyến nghị)
-Đặt trong LM Studio hoặc `.env`:
-```env
-USER_AGENT=mcp-web-calc/0.3 (https://local)
-HTTP_TIMEOUT=15000       # ms cho mọi yêu cầu mạng
-MAX_RESULTS=10           # mặc định cho search_web
-LANG_DEFAULT=vi          # ngôn ngữ mặc định
-MAX_BYTES=20971520       # giới hạn tải 20MB cho fetch_url
+## Production
+
+```bash
+npm run build
+npm run start
 ```
 
-> **Bảo vệ SSRF**: `fetch_url` sẽ **chặn** `localhost/127.0.0.1/::1/.local/.localhost`.
+## Environment Variables
 
----
+Configure in LM Studio or via `.env` file:
 
-## Thêm MCP server trong LM Studio
-**Settings → Developer → Model Context Protocol (MCP) Servers → Add**
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `USER_AGENT` | `mcp-web-search/1.0` | User agent string for HTTP requests |
+| `HTTP_TIMEOUT` | `15000` | Timeout in milliseconds for network requests |
+| `MAX_RESULTS` | `10` | Default maximum results for search_web |
+| `LANG_DEFAULT` | `en` | Default language code |
+| `MAX_BYTES` | `20971520` | Maximum download size (20MB) for fetch_url |
 
-- **Name**: `mcp-web-calc`
-- **Command**: `npm`
-- **Args**: `run`, `dev`  *(hoặc `start` nếu đã build)*
-- **Working directory**: đường dẫn tới thư mục dự án
-- **Environment variables**: như ở phần trên
+**SSRF Protection:** `fetch_url` blocks localhost, 127.0.0.1, ::1, .local, and .localhost domains.
 
-Khi chạy thành công, log sẽ hiện: `mcp-web-calc ready (stdio)…`
+## MCP Client Configuration
 
----
+Configure in your MCP client (Claude Desktop, LM Studio, etc.):
 
-## Công cụ & cú pháp (tool schema)
+**Example for LM Studio:**
+1. Open **Settings → Developer → Model Context Protocol (MCP) Servers**
+2. Click **Add**
+3. Configure:
+   - **Name:** `mcp-web-search`
+   - **Command:** `npm`
+   - **Args:** `run`, `dev` (or `start` for production)
+   - **Working directory:** Path to project directory
+   - **Environment variables:** Add variables from table above as needed
 
-### 1) `search_web`
-- **Input**
-```ts
-{ 
+**Example for Claude Desktop:**
+Add to your `claude_desktop_config.json`:
+```json
+{
+  "mcpServers": {
+    "mcp-web-search": {
+      "command": "npm",
+      "args": ["run", "dev"],
+      "cwd": "/path/to/mcp-web-search",
+      "env": {
+        "USER_AGENT": "mcp-web-search/1.0",
+        "LANG_DEFAULT": "en"
+      }
+    }
+  }
+}
+```
+
+When running successfully, logs will show: `mcp-web-search ready (stdio)...`
+
+## Tool Reference
+
+### search_web
+
+Two-tier web search with automatic escalation.
+
+**Input:**
+```typescript
+{
   q: string;
-  limit?: number;          // default: MAX_RESULTS (env), clamp 1..50
-  lang?: string;           // "vi" | "en" | ...
+  limit?: number;          // 1-50, default: MAX_RESULTS env
+  lang?: string;           // default: "en"
   mode?: "fast"|"deep"|"auto"; // default: "auto"
 }
 ```
-- **Output (rút gọn)**
-```ts
+
+**Output:**
+```typescript
 {
-  items: { title: string; url: string; snippet?: string; source: "ddg_html"|"bing_pw" }[];
+  items: Array<{
+    title: string;
+    url: string;
+    snippet?: string;
+    source: "ddg_html" | "bing_pw";
+  }>;
   modeUsed: "fast"|"deep"|"auto";
   enginesUsed: ("ddg_html"|"bing_pw")[];
-  escalated: boolean;      // auto có leo sang deep hay không
+  escalated: boolean;
   diagnostics?: Record<string, unknown>;
 }
 ```
-- **Ví dụ**
-```
-search_web: { "q": "Node.js LTS release schedule", "mode": "fast", "limit": 5, "lang": "vi" }
+
+**Example:**
+```json
+{
+  "q": "Node.js LTS release schedule",
+  "mode": "fast",
+  "limit": 5,
+  "lang": "en"
+}
 ```
 
----
+### fetch_url
 
-### 2) `fetch_url`
-- **Input**
-```ts
-{ url: string }  // hỗ trợ HTML & PDF
+Fetch and extract readable content from URLs.
+
+**Input:**
+```typescript
+{
+  url: string;  // Supports HTML and PDF
+}
 ```
-- **Output (rút gọn)**
-```ts
+
+**Output:**
+```typescript
 {
   text: string;
   url: string;
@@ -99,108 +148,137 @@ search_web: { "q": "Node.js LTS release schedule", "mode": "fast", "limit": 5, "
   byline?: string;
   siteName?: string;
   lang?: string;
-  length?: number; // nếu có
+  length?: number;
 }
 ```
-- **Ví dụ**
-```
-fetch_url: { "url": "https://example.com" }
-```
 
----
-
-### 3) `summarize_url`
-- **Input**
-```ts
-{ url: string }
-```
-- **Hành vi**
-  - Lấy nội dung bằng `fetch_url`, sau đó *thử* gọi model phía server (nếu được LM Studio cấp) để tóm tắt ngắn gọn tiếng Việt.
-  - **Fallback**: nếu không gọi được model, trả về tối đa ~2000 ký tự đầu của bài.
-- **Ví dụ**
-```
-summarize_url: { "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API" }
-```
-
----
-
-### 4) `math_eval`
-- **Input**
-```ts
+**Example:**
+```json
 {
-  expression: string;                      // cú pháp mathjs
-  mode?: "number"|"BigNumber"|"Fraction";  // default: "BigNumber"
-  precision?: number;                      // default: 64 (khi BigNumber)
+  "url": "https://example.com/article"
 }
 ```
-- **Lưu ý**
-  - `mathjs` **không có** hàm `integrate`. Dùng `derivative`, `simplify`, ma trận, đơn vị, v.v.
-  - Cần lượng giác? Dùng `mode="number"` để có sin/cos… chính xác kiểu số JS.
-- **Ví dụ**
-```
-math_eval: { "expression": "derivative(sin(x)*exp(x), x)", "mode": "number" }
-```
 
----
+### summarize_url
 
-### 5) `wiki_get`
-- **Input**
-```ts
-{ title: string; lang?: string /* default "vi" */ }
-```
-- **Output (rút gọn)**
-```ts
-{ lang: string; title: string; url: string; description?: string; extract?: string; thumbnailUrl?: string }
-```
-- **Ví dụ**
-```
-wiki_get: { "title": "Việt Nam", "lang": "vi" }
-```
+Fetch URL content and generate a concise summary.
 
----
-
-### 6) `wiki_multi`
-- **Input**
-```ts
+**Input:**
+```typescript
 {
-  term: string,                 // thuật ngữ gốc, ví dụ "Cá"
-  baseLang?: string,            // mặc định "vi"
-  langs?: string[]              // mặc định ["vi","en"]
+  url: string;
 }
 ```
-- **Output (rút gọn)**
-```ts
+
+**Behavior:**
+- Fetches content using `fetch_url`
+- Attempts to use LM Studio's model (if available) to generate summary
+- Falls back to first 2000 characters if model unavailable
+
+**Example:**
+```json
+{
+  "url": "https://developer.mozilla.org/en-US/docs/Web/API/Fetch_API"
+}
+```
+
+### wiki_get
+
+Retrieve Wikipedia summary for a specific title.
+
+**Input:**
+```typescript
+{
+  title: string;
+  lang?: string;  // default: "en"
+}
+```
+
+**Output:**
+```typescript
+{
+  lang: string;
+  title: string;
+  url: string;
+  description?: string;
+  extract?: string;
+  thumbnailUrl?: string;
+}
+```
+
+**Example:**
+```json
+{
+  "title": "Lambda calculus",
+  "lang": "en"
+}
+```
+
+### wiki_multi
+
+Retrieve Wikipedia summaries in multiple languages.
+
+**Input:**
+```typescript
+{
+  term: string;
+  baseLang?: string;      // default: "en"
+  langs?: string[];       // default: ["en"]
+}
+```
+
+**Output:**
+```typescript
 {
   baseLang: string;
-  base: { /* WikiSummary của baseLang */ };
-  items: Record<string, WikiSummary | null>; // null nếu không tìm thấy
-  resolved: Record<string, { title?: string; source: "base"|"langlinks"|"direct"|"none" }>
+  base: WikiSummary;
+  items: Record<string, WikiSummary | null>;
+  resolved: Record<string, {
+    title?: string;
+    source: "base" | "langlinks" | "direct" | "none";
+  }>;
 }
 ```
-- **Ví dụ**
-```
-wiki_multi: { "term": "Cá", "baseLang": "vi", "langs": ["vi","en","ja","fr"] }
+
+**Example:**
+```json
+{
+  "term": "Artificial intelligence",
+  "baseLang": "en",
+  "langs": ["en", "es", "fr", "de"]
+}
 ```
 
----
+## Quick Test Examples
 
-## Mẹo kiểm thử nhanh
-```text
-search_web: { "q": "site:developer.apple.com App Intents", "mode": "deep", "limit": 5, "lang": "vi" }
+```
+search_web: { "q": "site:developer.apple.com App Intents", "mode": "deep", "limit": 5 }
 fetch_url: { "url": "https://example.com" }
 summarize_url: { "url": "https://www.python.org/dev/peps/pep-0008/" }
-math_eval: { "expression": "inv([[1,2],[3,4]])", "mode": "number" }
 wiki_get: { "title": "Lambda calculus", "lang": "en" }
-wiki_multi: { "term": "Cá", "baseLang": "vi", "langs": ["vi","en","ja","fr"] }
+wiki_multi: { "term": "Machine learning", "langs": ["en", "es", "fr"] }
 ```
 
----
+## Troubleshooting
 
-## Khắc phục sự cố
-- **CAPTCHA / chặn tạm thời**: giảm tần suất, ưu tiên `mode="fast"`, thử lại sau vài phút.
-- **Playwright chưa cài**: `npx playwright install chromium`.
-- **Timeout / treo khi tải**: tăng `HTTP_TIMEOUT`, hoặc nội dung vượt `MAX_BYTES`.
-- **URL nội bộ bị chặn**: đây là chủ đích (SSRF guard).
+**CAPTCHA or temporary blocks**
+- Reduce request frequency
+- Use `mode="fast"` to avoid Playwright
+- Wait a few minutes before retrying
 
-## Giấy phép
-MIT — xem tệp `LICENSE`.
+**Playwright not installed**
+```bash
+npx playwright install chromium
+```
+
+**Timeout or hanging downloads**
+- Increase `HTTP_TIMEOUT` environment variable
+- Content may exceed `MAX_BYTES` limit
+
+**Internal URLs blocked**
+- This is intentional SSRF protection
+- Only public URLs are allowed
+
+## License
+
+MIT - See LICENSE file for details.
