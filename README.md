@@ -1,8 +1,6 @@
-# mcp-web-search
+# MCP Web Search
 
 MCP server: web search, Wikipedia summaries, and URL content extraction. No API keys required.
-
-Version: 1.0.0
 
 ## Features
 
