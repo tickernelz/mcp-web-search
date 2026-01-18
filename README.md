@@ -74,7 +74,7 @@ Example: `{ "q": "Node.js LTS", "mode": "fast", "limit": 5 }`
 
 Extract content with intelligent truncation.
 
-Input: `{ url: string, mode?: "compact"|"standard"|"full", max_length?: number }`
+Input: `{ url: string, mode?: "compact"|"standard"|"full", max_length?: number, format?: "markdown"|"text"|"html" }`
 
 | Mode | Characters | Tokens | Use Case |
 |------|------------|--------|----------|
@@ -84,14 +84,17 @@ Input: `{ url: string, mode?: "compact"|"standard"|"full", max_length?: number }
 
 max_length: Exact character limit (1000-100000), overrides mode.
 
+format: Output format (markdown, text, html). Default: markdown.
+
 Truncation: Semantic chunking prioritizes headings, code blocks, conclusions.
 
 Output: `{ markdown?, text?, format, url, title?, truncated?, original_length?, truncation_ratio? }`
 
 Examples:
 - `{ "url": "https://example.com", "mode": "compact" }`
+- `{ "url": "https://example.com", "format": "text" }`
+- `{ "url": "https://example.com", "format": "markdown" }`
 - `{ "url": "https://example.com", "max_length": 5000 }`
-- `{ "url": "https://example.com" }` (default: standard)
 
 ### summarize_url
 

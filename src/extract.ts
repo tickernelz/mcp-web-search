@@ -128,8 +128,61 @@ export async function fetchAndExtract(
 
   const extracted = extractWithReadabilityAlt(html, url);
 
+  const requestedFormat = options?.format || "markdown";
+  const shouldReturnMarkdown = requestedFormat === "markdown";
+  const shouldReturnText = requestedFormat === "text";
+  const shouldReturnHtml = requestedFormat === "html";
+
   if (extracted && extracted.textContent && extracted.textContent.length > 0) {
     const markdown = htmlToMarkdown(extracted.content);
+
+    if (shouldReturnMarkdown && markdown) {
+      const truncationResult = applySmartTruncation(markdown, "markdown", options);
+      return {
+        title: extracted.title || undefined,
+        markdown: truncationResult.content,
+        url,
+        length: extracted.length,
+        format: "markdown",
+        truncated: truncationResult.truncated,
+        original_length: truncationResult.original_length,
+        truncation_ratio: truncationResult.truncated
+          ? truncationResult.final_length / truncationResult.original_length
+          : undefined
+      };
+    }
+
+    if (shouldReturnText) {
+      const truncationResult = applySmartTruncation(extracted.textContent, "text", options);
+      return {
+        title: extracted.title || undefined,
+        text: truncationResult.content,
+        url,
+        length: extracted.length,
+        format: "text",
+        truncated: truncationResult.truncated,
+        original_length: truncationResult.original_length,
+        truncation_ratio: truncationResult.truncated
+          ? truncationResult.final_length / truncationResult.original_length
+          : undefined
+      };
+    }
+
+    if (shouldReturnHtml && extracted.content) {
+      const truncationResult = applySmartTruncation(extracted.content, "markdown", options);
+      return {
+        title: extracted.title || undefined,
+        markdown: truncationResult.content,
+        url,
+        length: extracted.length,
+        format: "markdown",
+        truncated: truncationResult.truncated,
+        original_length: truncationResult.original_length,
+        truncation_ratio: truncationResult.truncated
+          ? truncationResult.final_length / truncationResult.original_length
+          : undefined
+      };
+    }
 
     if (markdown) {
       const truncationResult = applySmartTruncation(markdown, "markdown", options);

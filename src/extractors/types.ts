@@ -22,10 +22,12 @@ export const DEFAULT_CONFIG: ExtractConfig = {
 };
 
 export type TruncationMode = "compact" | "standard" | "full";
+export type OutputFormat = "markdown" | "text" | "html";
 
 export interface ExtractionOptions {
   mode?: TruncationMode;
   max_length?: number;
+  format?: OutputFormat;
 }
 
 export interface ContentChunk {
