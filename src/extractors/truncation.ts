@@ -1,8 +1,8 @@
 import type { ExtractionOptions, ContentChunk, TruncationResult } from "./types.js";
 
 const MODE_LIMITS: Record<string, number> = {
-  compact: 3000,
-  standard: 8000,
+  compact: 10000,
+  standard: 25000,
   full: Infinity
 };
 

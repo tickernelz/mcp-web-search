@@ -6,7 +6,8 @@ import { applySmartTruncation } from "./extractors/truncation.js";
 import type { ExtractionOptions } from "./extractors/types.js";
 
 function uaHeaders() {
-  const ua = process.env.USER_AGENT || "mcp-web-search/1.0";
+  const ua =
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
   const lang = process.env.LANG_DEFAULT || "en";
   const accept = lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`;
   return { "User-Agent": ua, "Accept-Language": accept } as Record<string, string>;
@@ -104,6 +105,27 @@ export async function fetchAndExtract(
   const ct = res.headers.get("content-type") || "";
   const buf = Buffer.from(await res.arrayBuffer());
   if (buf.byteLength > MAX_BYTES) throw new Error(`Content too large (downloaded)`);
+
+  if (
+    ct.includes("text/plain") ||
+    ct.includes("text/markdown") ||
+    u.pathname.toLowerCase().endsWith(".md")
+  ) {
+    const rawText = buf.toString("utf8");
+    const truncationResult = applySmartTruncation(rawText, "markdown", options);
+    return {
+      text: truncationResult.content,
+      markdown: truncationResult.content,
+      url,
+      title: u.pathname.split("/").pop(),
+      format: "markdown",
+      truncated: truncationResult.truncated,
+      original_length: truncationResult.original_length,
+      truncation_ratio: truncationResult.truncated
+        ? truncationResult.final_length / truncationResult.original_length
+        : undefined
+    };
+  }
 
   if (ct.includes("application/pdf") || u.pathname.toLowerCase().endsWith(".pdf")) {
     const pdfParse: any = (await import("pdf-parse")).default;
