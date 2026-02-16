@@ -5,12 +5,10 @@ import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js"
 import { z } from "zod";
 import { runTwoTierSearch, type EngineName } from "./engines.js";
 import { fetchAndExtract } from "./extract.js";
+import { MAX_RESULTS } from "./constants.js";
+import { toInt } from "./utils/http.js";
 
-const toInt = (v: string | undefined, def: number) => {
-  const n = Number(v);
-  return Number.isFinite(n) && n > 0 ? Math.floor(n) : def;
-};
-const DEFAULT_LIMIT = toInt(process.env.MAX_RESULTS, 10);
+const DEFAULT_LIMIT = toInt(process.env.MAX_RESULTS, MAX_RESULTS);
 const server = new McpServer({ name: "mcp-web-search", version: "1.0.0" });
 
 server.registerTool(

@@ -1,6 +1,8 @@
 import { JSDOM } from "jsdom";
-import puppeteer from "puppeteer-core";
-import { findChrome } from "./chrome.js";
+import { HTTP_TIMEOUT, MAX_RESULTS, PUPPETEER_TIMEOUT, USER_AGENT } from "./constants.js";
+import { fetchWithTimeout, uaHeaders, toInt } from "./utils/http.js";
+import { browserPool } from "./utils/browser-pool.js";
+import { searchCache, createCacheKey } from "./utils/cache.js";
 
 export type SearchMode = "fast" | "deep" | "auto";
 export type EngineName = "ddg_html" | "bing_puppeteer";
@@ -20,33 +22,6 @@ export interface SearchResponse {
   diagnostics?: Record<string, unknown>;
 }
 
-function uaHeaders(lang = process.env.LANG_DEFAULT || "en") {
-  const ua = process.env.USER_AGENT || "mcp-web-search/1.0";
-  const acceptLang = lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`;
-  return { "User-Agent": ua, "Accept-Language": acceptLang } as Record<string, string>;
-}
-
-function toMs(env: string | undefined, def: number) {
-  const n = Number(env);
-  return Number.isFinite(n) && n > 0 ? n : def;
-}
-
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit = {},
-  timeoutMs = 15000
-): Promise<Response> {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-const HTTP_TIMEOUT = toMs(process.env.HTTP_TIMEOUT, 15000);
-
 function decodeDuckDuckGoRedirect(href: string): string {
   try {
     const u = new URL(href, "https://duckduckgo.com/");
@@ -61,6 +36,10 @@ function decodeDuckDuckGoRedirect(href: string): string {
 }
 
 async function ddgHtmlSearch(q: string, limit: number, lang: string): Promise<SearchItem[]> {
+  const cacheKey = createCacheKey("ddg", q, limit, lang);
+  const cached = searchCache.get(cacheKey) as SearchItem[] | undefined;
+  if (cached) return cached;
+
   const url = new URL("https://html.duckduckgo.com/html/");
   url.searchParams.set("q", q);
   const res = await fetchWithTimeout(url, { headers: uaHeaders(lang) }, HTTP_TIMEOUT);
@@ -82,76 +61,71 @@ async function ddgHtmlSearch(q: string, limit: number, lang: string): Promise<Se
       items.push({ title, url: u.toString(), snippet: sn, source: "ddg_html" });
     } catch {}
   }
+  searchCache.set(cacheKey, items);
   return items;
 }
 
 async function bingPuppeteerSearch(q: string, limit: number, lang: string): Promise<SearchItem[]> {
-  const chromePath = findChrome();
-  const browser = await puppeteer.launch({
-    executablePath: chromePath,
-    headless: true,
-    args: [
-      "--no-sandbox",
-      "--disable-setuid-sandbox",
-      "--disable-dev-shm-usage",
-      "--disable-accelerated-2d-canvas",
-      "--no-first-run",
-      "--no-zygote",
-      "--disable-gpu"
-    ]
-  });
+  const cacheKey = createCacheKey("bing", q, limit, lang);
+  const cached = searchCache.get(cacheKey) as SearchItem[] | undefined;
+  if (cached) return cached;
 
-  try {
+  const results = await browserPool.withBrowser(async browser => {
     const page = await browser.newPage();
-    await page.setUserAgent((process.env.USER_AGENT || "mcp-web-search/1.0") + " Puppeteer");
-    await page.setExtraHTTPHeaders({
-      "Accept-Language": lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`
-    });
+    try {
+      await page.setUserAgent(USER_AGENT + " Puppeteer");
+      await page.setExtraHTTPHeaders({
+        "Accept-Language": lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`
+      });
 
-    const url = new URL("https://www.bing.com/search");
-    url.searchParams.set("q", q);
-    if (lang) url.searchParams.set("setlang", lang);
+      const url = new URL("https://www.bing.com/search");
+      url.searchParams.set("q", q);
+      if (lang) url.searchParams.set("setlang", lang);
 
-    await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: 30000 });
+      await page.goto(url.toString(), { waitUntil: "domcontentloaded", timeout: PUPPETEER_TIMEOUT });
 
-    const results = await page.evaluate(maxResults => {
-      const items: Array<{ title: string; url: string; snippet?: string }> = [];
-      const cards = document.querySelectorAll("li.b_algo");
+      const items = await page.evaluate(maxResults => {
+        const results: Array<{ title: string; url: string; snippet?: string }> = [];
+        const cards = document.querySelectorAll("li.b_algo");
 
-      for (const card of Array.from(cards)) {
-        const anchor = card.querySelector("h2 a");
-        if (!anchor) continue;
+        for (const card of Array.from(cards)) {
+          const anchor = card.querySelector("h2 a");
+          if (!anchor) continue;
 
-        const title = anchor.textContent?.trim() || "";
-        const href = anchor.getAttribute("href");
-        if (!href || !title) continue;
+          const title = anchor.textContent?.trim() || "";
+          const href = anchor.getAttribute("href");
+          if (!href || !title) continue;
 
-        let snippet = "";
-        const captionP = card.querySelector("div.b_caption p");
-        if (captionP) {
-          snippet = captionP.textContent?.trim() || "";
-        } else {
-          const snippetDiv = card.querySelector("div.b_snippet");
-          if (snippetDiv) {
-            snippet = snippetDiv.textContent?.trim() || "";
+          let snippet = "";
+          const captionP = card.querySelector("div.b_caption p");
+          if (captionP) {
+            snippet = captionP.textContent?.trim() || "";
+          } else {
+            const snippetDiv = card.querySelector("div.b_snippet");
+            if (snippetDiv) {
+              snippet = snippetDiv.textContent?.trim() || "";
+            }
           }
+
+          try {
+            new URL(href);
+            results.push({ title, url: href, snippet: snippet || undefined });
+          } catch {}
+
+          if (results.length >= maxResults) break;
         }
 
-        try {
-          new URL(href);
-          items.push({ title, url: href, snippet: snippet || undefined });
-        } catch {}
+        return results;
+      }, limit);
 
-        if (items.length >= maxResults) break;
-      }
+      return items.map(r => ({ ...r, source: "bing_puppeteer" as EngineName }));
+    } finally {
+      await page.close();
+    }
+  });
 
-      return items;
-    }, limit);
-
-    return results.map(r => ({ ...r, source: "bing_puppeteer" as EngineName }));
-  } finally {
-    await browser.close();
-  }
+  searchCache.set(cacheKey, results);
+  return results;
 }
 
 export async function runTwoTierSearch(opts: {
@@ -164,12 +138,10 @@ export async function runTwoTierSearch(opts: {
   const { q } = opts;
   const limit = Math.max(
     1,
-    Math.min(Number(opts.limit ?? (Number(process.env.MAX_RESULTS) || 10)), 50)
+    Math.min(opts.limit ?? toInt(process.env.MAX_RESULTS, MAX_RESULTS), 50)
   );
-
   const lang = opts.lang ?? (process.env.LANG_DEFAULT || "en");
   const mode = opts.mode ?? "auto";
-
   const enginesUsed: EngineName[] = [];
   const diagnostics: Record<string, unknown> = {};
 

@@ -4,36 +4,9 @@ import { extractWithReadabilityAlt } from "./extractors/readability-alt.js";
 import { htmlToMarkdown } from "./extractors/markdown.js";
 import { applySmartTruncation } from "./extractors/truncation.js";
 import type { ExtractionOptions } from "./extractors/types.js";
-
-function uaHeaders() {
-  const ua =
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36";
-  const lang = process.env.LANG_DEFAULT || "en";
-  const accept = lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`;
-  return { "User-Agent": ua, "Accept-Language": accept } as Record<string, string>;
-}
-
-function toMs(env: string | undefined, def: number) {
-  const n = Number(env);
-  return Number.isFinite(n) && n > 0 ? n : def;
-}
-
-async function fetchWithTimeout(
-  input: RequestInfo | URL,
-  init: RequestInit = {},
-  timeoutMs = 15000
-): Promise<Response> {
-  const controller = new AbortController();
-  const t = setTimeout(() => controller.abort(), timeoutMs);
-  try {
-    return await fetch(input, { ...init, signal: controller.signal });
-  } finally {
-    clearTimeout(t);
-  }
-}
-
-const HTTP_TIMEOUT = toMs(process.env.HTTP_TIMEOUT, 15000);
-const MAX_BYTES = toMs(process.env.MAX_BYTES, 20 * 1024 * 1024);
+import { HTTP_TIMEOUT, MAX_BYTES } from "./constants.js";
+import { fetchWithTimeout, uaHeaders, toInt } from "./utils/http.js";
+import { fetchCache, createCacheKey } from "./utils/cache.js";
 
 export interface ExtractedDoc {
   title?: string;
@@ -91,6 +64,10 @@ export async function fetchAndExtract(
     throw new Error("Blocked localhost/private URL");
   }
 
+  const cacheKey = createCacheKey("fetch", url, options?.mode || "standard", options?.format || "markdown");
+  const cached = fetchCache.get(cacheKey) as ExtractedDoc | undefined;
+  if (cached) return cached;
+
   const res = await fetchWithTimeout(
     u.toString(),
     { redirect: "follow", headers: uaHeaders() },
@@ -113,7 +90,7 @@ export async function fetchAndExtract(
   ) {
     const rawText = buf.toString("utf8");
     const truncationResult = applySmartTruncation(rawText, "markdown", options);
-    return {
+    const result: ExtractedDoc = {
       text: truncationResult.content,
       markdown: truncationResult.content,
       url,
@@ -125,6 +102,8 @@ export async function fetchAndExtract(
         ? truncationResult.final_length / truncationResult.original_length
         : undefined
     };
+    fetchCache.set(cacheKey, result);
+    return result;
   }
 
   if (ct.includes("application/pdf") || u.pathname.toLowerCase().endsWith(".pdf")) {
@@ -132,7 +111,7 @@ export async function fetchAndExtract(
     const data = await pdfParse(buf);
     const text = data.text || "";
     const truncationResult = applySmartTruncation(text, "text", options);
-    return {
+    const result: ExtractedDoc = {
       text: truncationResult.content,
       url,
       title: data.info?.Title,
@@ -144,6 +123,8 @@ export async function fetchAndExtract(
         ? truncationResult.final_length / truncationResult.original_length
         : undefined
     };
+    fetchCache.set(cacheKey, result);
+    return result;
   }
 
   const html = buf.toString("utf8");
@@ -160,7 +141,7 @@ export async function fetchAndExtract(
 
     if (shouldReturnMarkdown && markdown) {
       const truncationResult = applySmartTruncation(markdown, "markdown", options);
-      return {
+      const result: ExtractedDoc = {
         title: extracted.title || undefined,
         markdown: truncationResult.content,
         url,
@@ -172,11 +153,13 @@ export async function fetchAndExtract(
           ? truncationResult.final_length / truncationResult.original_length
           : undefined
       };
+      fetchCache.set(cacheKey, result);
+      return result;
     }
 
     if (shouldReturnText) {
       const truncationResult = applySmartTruncation(extracted.textContent, "text", options);
-      return {
+      const result: ExtractedDoc = {
         title: extracted.title || undefined,
         text: truncationResult.content,
         url,
@@ -188,11 +171,13 @@ export async function fetchAndExtract(
           ? truncationResult.final_length / truncationResult.original_length
           : undefined
       };
+      fetchCache.set(cacheKey, result);
+      return result;
     }
 
     if (shouldReturnHtml && extracted.content) {
       const truncationResult = applySmartTruncation(extracted.content, "markdown", options);
-      return {
+      const result: ExtractedDoc = {
         title: extracted.title || undefined,
         markdown: truncationResult.content,
         url,
@@ -204,11 +189,13 @@ export async function fetchAndExtract(
           ? truncationResult.final_length / truncationResult.original_length
           : undefined
       };
+      fetchCache.set(cacheKey, result);
+      return result;
     }
 
     if (markdown) {
       const truncationResult = applySmartTruncation(markdown, "markdown", options);
-      return {
+      const result: ExtractedDoc = {
         title: extracted.title || undefined,
         markdown: truncationResult.content,
         url,
@@ -220,10 +207,12 @@ export async function fetchAndExtract(
           ? truncationResult.final_length / truncationResult.original_length
           : undefined
       };
+      fetchCache.set(cacheKey, result);
+      return result;
     }
 
     const truncationResult = applySmartTruncation(extracted.textContent, "text", options);
-    return {
+    const result: ExtractedDoc = {
       title: extracted.title || undefined,
       text: truncationResult.content,
       url,
@@ -235,12 +224,14 @@ export async function fetchAndExtract(
         ? truncationResult.final_length / truncationResult.original_length
         : undefined
     };
+    fetchCache.set(cacheKey, result);
+    return result;
   }
 
   const fallback = fallbackExtraction(html, url);
   const truncationResult = applySmartTruncation(fallback.text, "text", options);
 
-  return {
+  const result: ExtractedDoc = {
     title: fallback.title,
     byline: fallback.byline,
     siteName: fallback.siteName,
@@ -253,4 +244,6 @@ export async function fetchAndExtract(
       ? truncationResult.final_length / truncationResult.original_length
       : undefined
   };
+  fetchCache.set(cacheKey, result);
+  return result;
 }
