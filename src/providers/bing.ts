@@ -1,6 +1,7 @@
 import type { ProviderInterface, SearchItem, ProviderName } from "../types/provider.js";
-import { USER_AGENT, PUPPETEER_TIMEOUT } from "../constants.js";
+import { PUPPETEER_TIMEOUT } from "../constants.js";
 import { browserPool } from "../utils/browser-pool.js";
+import { getRandomUserAgent, getAcceptLanguageHeader } from "../utils/user-agent.js";
 import { searchCache, createCacheKey } from "../utils/cache.js";
 
 export class BingProvider implements ProviderInterface {
@@ -11,13 +12,12 @@ export class BingProvider implements ProviderInterface {
     const cached = searchCache.get(cacheKey) as SearchItem[] | undefined;
     if (cached) return cached;
 
+    const userAgent = getRandomUserAgent();
     const results = await browserPool.withBrowser(async browser => {
       const page = await browser.newPage();
       try {
-        await page.setUserAgent(USER_AGENT + " Puppeteer");
-        await page.setExtraHTTPHeaders({
-          "Accept-Language": lang === "en" ? "en-US,en;q=0.9" : `${lang};q=0.9,en;q=0.8`
-        });
+        await page.setUserAgent(userAgent);
+        await page.setExtraHTTPHeaders(getAcceptLanguageHeader(lang));
 
         const url = new URL("https://www.bing.com/search");
         url.searchParams.set("q", q);

@@ -1,6 +1,7 @@
 import type { ProviderInterface, SearchItem, ProviderName } from "../types/provider.js";
 import { HTTP_TIMEOUT, SEARXNG_URL } from "../constants.js";
 import { fetchWithTimeout } from "../utils/http.js";
+import { getRandomUserAgent, getAcceptLanguageHeader } from "../utils/user-agent.js";
 import { searchCache, createCacheKey } from "../utils/cache.js";
 
 export class SearXNGProvider implements ProviderInterface {
@@ -28,8 +29,8 @@ export class SearXNGProvider implements ProviderInterface {
       url,
       {
         headers: {
-          "User-Agent": "mcp-web-search/1.1",
-          Accept: "application/json"
+          "User-Agent": getRandomUserAgent(),
+          ...getAcceptLanguageHeader(lang)
         }
       },
       HTTP_TIMEOUT
@@ -60,7 +61,7 @@ export class SearXNGProvider implements ProviderInterface {
     try {
       const res = await fetchWithTimeout(
         `${this.instanceUrl}/search?q=test&format=json`,
-        { headers: { Accept: "application/json" } },
+        { headers: { Accept: "application/json", "User-Agent": getRandomUserAgent() } },
         5000
       );
       return res.ok;

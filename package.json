@@ -1,6 +1,6 @@
 {
   "name": "@zhafron/mcp-web-search",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "type": "module",
   "description": "MCP server: Multi-provider web search (DuckDuckGo, Bing, SearXNG) with automatic fallback, and URL content extraction — no API keys required.",
   "main": "dist/src/server.js",
@@ -52,12 +52,14 @@
     "pdf-parse": "^1.1.1",
     "puppeteer-core": "^23.11.1",
     "turndown": "^7.2.2",
+    "user-agents": "^1.1.669",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/jsdom": "^21.1.7",
     "@types/node": "^20.11.30",
     "@types/turndown": "^5.0.6",
+    "@types/user-agents": "^1.0.4",
     "prettier": "^3.8.0",
     "tsx": "^4.19.0",
     "typescript": "^5.5.4"

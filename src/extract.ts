@@ -5,7 +5,8 @@ import { htmlToMarkdown } from "./extractors/markdown.js";
 import { applySmartTruncation } from "./extractors/truncation.js";
 import type { ExtractionOptions } from "./extractors/types.js";
 import { HTTP_TIMEOUT, MAX_BYTES } from "./constants.js";
-import { fetchWithTimeout, uaHeaders, toInt } from "./utils/http.js";
+import { fetchWithTimeout } from "./utils/http.js";
+import { getRandomHeaders } from "./utils/user-agent.js";
 import { fetchCache, createCacheKey } from "./utils/cache.js";
 
 export interface ExtractedDoc {
@@ -75,7 +76,7 @@ export async function fetchAndExtract(
 
   const res = await fetchWithTimeout(
     u.toString(),
-    { redirect: "follow", headers: uaHeaders() },
+    { redirect: "follow", headers: getRandomHeaders() },
     HTTP_TIMEOUT
   );
   if (!res.ok) throw new Error(`Fetch ${res.status} for ${url}`);

@@ -1,7 +1,8 @@
 import { JSDOM } from "jsdom";
-import type { ProviderInterface, SearchItem } from "../types/provider.js";
+import type { ProviderInterface, SearchItem, ProviderName } from "../types/provider.js";
 import { HTTP_TIMEOUT } from "../constants.js";
-import { fetchWithTimeout, uaHeaders } from "../utils/http.js";
+import { fetchWithTimeout } from "../utils/http.js";
+import { getRandomUserAgent, getAcceptLanguageHeader } from "../utils/user-agent.js";
 import { searchCache, createCacheKey } from "../utils/cache.js";
 
 export class DuckDuckGoProvider implements ProviderInterface {
@@ -27,7 +28,11 @@ export class DuckDuckGoProvider implements ProviderInterface {
 
     const url = new URL("https://html.duckduckgo.com/html/");
     url.searchParams.set("q", q);
-    const res = await fetchWithTimeout(url, { headers: uaHeaders(lang) }, HTTP_TIMEOUT);
+    const headers = {
+      "User-Agent": getRandomUserAgent(),
+      ...getAcceptLanguageHeader(lang)
+    };
+    const res = await fetchWithTimeout(url, { headers }, HTTP_TIMEOUT);
     if (!res.ok) throw new Error(`DuckDuckGo HTML ${res.status}`);
     const html = await res.text();
     const dom = new JSDOM(html, { url: "https://duckduckgo.com/?q=" + encodeURIComponent(q) });
@@ -54,5 +59,3 @@ export class DuckDuckGoProvider implements ProviderInterface {
     return true;
   }
 }
-
-import { ProviderName } from "../types/provider.js";

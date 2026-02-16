@@ -75,7 +75,14 @@ MCP server: web search and URL content extraction. No API keys required.
 | `DEFAULT_SEARCH_PROVIDER` | `duckduckgo` | Default search provider (duckduckgo, bing, searxng) |
 | `SEARXNG_URL` | `http://localhost:8099` | SearXNG instance URL |
 | `HTTP_TIMEOUT` | `15000` | Request timeout (ms) |
-| `USER_AGENT` | `mcp-web-search/1.1` | User agent string |
+
+## Anti-Bot Detection
+
+This package uses realistic, rotating user agents to minimize bot detection:
+- Random user agents from real browsers (Chrome, Firefox, Safari, Edge)
+- Always up-to-date browser versions
+- Desktop device category for consistency
+- Different user agent per request
 
 ## Chrome Setup (for Bing Provider)
 
