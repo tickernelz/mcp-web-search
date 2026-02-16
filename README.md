@@ -3,20 +3,25 @@
 [![npm downloads](https://img.shields.io/npm/dm/@zhafron/mcp-web-search)](https://www.npmjs.com/package/@zhafron/mcp-web-search)
 [![license](https://img.shields.io/npm/l/@zhafron/mcp-web-search)](https://www.npmjs.com/package/@zhafron/mcp-web-search)
 
-MCP server: web search, Wikipedia summaries, and URL content extraction. No API keys required.
+MCP server: web search and URL content extraction. No API keys required.
 
 ## Features
 
-- search_web - Two-tier web search (DuckDuckGo HTML / Puppeteer/Bing)
-- fetch_url - Extract content with semantic truncation
-- summarize_url - Fetch and summarize URL content
-- wiki_get - Wikipedia summary by language
-- wiki_multi - Wikipedia summaries in multiple languages
+- **search_web** - Multi-provider web search with automatic fallback (DuckDuckGo, Bing, SearXNG)
+- **fetch_url** - Extract content from URLs with semantic truncation
+
+## Providers
+
+| Provider | API Key Required | Description |
+|----------|------------------|-------------|
+| **DuckDuckGo** | No | HTML scraping, fast and simple |
+| **Bing** | No | Puppeteer-based search (requires Chrome) |
+| **SearXNG** | No | Self-hosted meta-search, unlimited usage |
 
 ## Requirements
 
 - Node.js 18+
-- Chrome/Chromium (for deep search mode)
+- Chrome/Chromium (for Bing provider)
 
 ## MCP Configuration
 
@@ -46,7 +51,7 @@ MCP server: web search, Wikipedia summaries, and URL content extraction. No API 
 }
 ```
 
-### Generic / Others
+### With Custom Configuration
 
 ```json
 {
@@ -54,13 +59,25 @@ MCP server: web search, Wikipedia summaries, and URL content extraction. No API 
     "web-search": {
       "command": "npx",
       "args": ["-y", "@zhafron/mcp-web-search"],
-      "env": {}
+      "env": {
+        "DEFAULT_SEARCH_PROVIDER": "duckduckgo",
+        "SEARXNG_URL": "http://localhost:8099"
+      }
     }
   }
 }
 ```
 
-## Chrome Setup
+## Environment Variables
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DEFAULT_SEARCH_PROVIDER` | `duckduckgo` | Default search provider (duckduckgo, bing, searxng) |
+| `SEARXNG_URL` | `http://localhost:8099` | SearXNG instance URL |
+| `HTTP_TIMEOUT` | `15000` | Request timeout (ms) |
+| `USER_AGENT` | `mcp-web-search/1.1` | User agent string |
+
+## Chrome Setup (for Bing Provider)
 
 | OS | Command |
 |----|---------|
@@ -71,27 +88,21 @@ MCP server: web search, Wikipedia summaries, and URL content extraction. No API 
 
 Custom path: `export CHROME_PATH=/path/to/chrome`
 
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| CHROME_PATH | auto-detect | Chrome executable path |
-| HTTP_TIMEOUT | 15000 | Request timeout (ms) |
-| USER_AGENT | mcp-web-search/1.1 | User agent string |
-
-SSRF Protection: Blocks localhost, 127.0.0.1, ::1, .local domains.
-
 ## Tools
 
 ### search_web
 
-Input: `{ q: string, limit?: number, lang?: string, mode?: "fast"|"deep"|"auto" }`
+Input: `{ q: string, limit?: number, lang?: string, provider?: "duckduckgo"|"bing"|"searxng" }`
 
-Output: `{ items: Array<{ title, url, snippet?, source }>, modeUsed, enginesUsed, escalated }`
+Output: `{ items: Array<{ title, url, snippet?, source }>, providerUsed, fallbackUsed, triedProviders }`
+
+**Automatic Fallback:**
+- If default provider fails, automatically tries other providers
+- Fallback order: DuckDuckGo → SearXNG → Bing (or vice versa based on default)
 
 ### fetch_url
 
-Input: `{ url: string, mode?: "compact"|"standard"|"full", max_length?: number, format?: "markdown"|"text" }`
+Input: `{ url: string, mode?: "compact"|"standard"|"full", max_length?: number, format?: "markdown"|"text"|"html" }`
 
 | Mode | Characters | Tokens |
 |------|------------|--------|
@@ -101,26 +112,36 @@ Input: `{ url: string, mode?: "compact"|"standard"|"full", max_length?: number, 
 
 Output: `{ markdown?, text?, format, url, title?, truncated?, original_length? }`
 
-### summarize_url
+## SearXNG Setup
 
-Input: `{ url: string }`
+SearXNG is a free, self-hosted meta-search engine. Quick setup with Docker:
 
-### wiki_get
+```bash
+mkdir -p ~/docker/searxng && echo 'use_default_settings: true
+search:
+  safe_search: 0
+  formats:
+    - html
+    - json
+server:
+  secret_key: "your_secret_key_here"
+  limiter: false
+  image_proxy: true
+outgoing:
+  request_timeout: 10.0
+  max_request_timeout: 15.0' > ~/docker/searxng/settings.yml && docker run -d --name searxng -p 8099:8080 -v ~/docker/searxng/settings.yml:/etc/searxng/settings.yml:ro searxng/searxng:latest
+```
 
-Input: `{ title: string, lang?: string }`
+## SSRF Protection
 
-Output: `{ lang, title, url, description?, extract?, thumbnailUrl? }`
-
-### wiki_multi
-
-Input: `{ term: string, baseLang?: string, langs?: string[] }`
+Blocks localhost, 127.0.0.1, ::1, .local domains.
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
 | Chrome not found | Install Chrome or set CHROME_PATH |
-| CAPTCHA/blocks | Reduce frequency, use fast mode |
+| SearXNG 403 | Enable JSON API in settings.yml |
 | Timeout | Increase HTTP_TIMEOUT |
 
 ## License

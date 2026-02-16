@@ -14,3 +14,8 @@ export const PUPPETEER_ARGS = [
   "--no-zygote",
   "--disable-gpu"
 ];
+export const DEFAULT_SEARCH_PROVIDER =
+  (process.env.DEFAULT_SEARCH_PROVIDER as ProviderName) || "duckduckgo";
+export const SEARXNG_URL = process.env.SEARXNG_URL || "http://localhost:8099";
+
+import type { ProviderName } from "./types/provider.js";

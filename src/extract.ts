@@ -64,7 +64,12 @@ export async function fetchAndExtract(
     throw new Error("Blocked localhost/private URL");
   }
 
-  const cacheKey = createCacheKey("fetch", url, options?.mode || "standard", options?.format || "markdown");
+  const cacheKey = createCacheKey(
+    "fetch",
+    url,
+    options?.mode || "standard",
+    options?.format || "markdown"
+  );
   const cached = fetchCache.get(cacheKey) as ExtractedDoc | undefined;
   if (cached) return cached;
 
