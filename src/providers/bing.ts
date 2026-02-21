@@ -1,11 +1,28 @@
 import type { ProviderInterface, SearchItem, ProviderName } from "../types/provider.js";
 import { PUPPETEER_TIMEOUT } from "../constants.js";
 import { browserPool } from "../utils/browser-pool.js";
-import { getRandomUserAgent, getAcceptLanguageHeader } from "../utils/user-agent.js";
+import { getRandomUserAgent, getAcceptLanguageHeader, getMarketFromLang } from "../utils/user-agent.js";
 import { searchCache, createCacheKey } from "../utils/cache.js";
 
 export class BingProvider implements ProviderInterface {
   name: ProviderName = "bing";
+
+  private decodeBingRedirect(href: string): string {
+    try {
+      const url = new URL(href);
+      if (url.hostname === "www.bing.com" && url.pathname === "/ck/a") {
+        const u = url.searchParams.get("u");
+        if (u && u.length > 2) {
+          const base64 = u.substring(2);
+          const decoded = Buffer.from(base64, "base64").toString("utf-8");
+          if (decoded.startsWith("http")) return decoded;
+        }
+      }
+      return href;
+    } catch {
+      return href;
+    }
+  }
 
   async search(q: string, limit: number, lang: string): Promise<SearchItem[]> {
     const cacheKey = createCacheKey("bing", q, limit, lang);
@@ -13,6 +30,7 @@ export class BingProvider implements ProviderInterface {
     if (cached) return cached;
 
     const userAgent = getRandomUserAgent();
+    const market = getMarketFromLang(lang);
     const results = await browserPool.withBrowser(async browser => {
       const page = await browser.newPage();
       try {
@@ -21,7 +39,7 @@ export class BingProvider implements ProviderInterface {
 
         const url = new URL("https://www.bing.com/search");
         url.searchParams.set("q", q);
-        if (lang) url.searchParams.set("setlang", lang);
+        url.searchParams.set("mkt", market);
 
         await page.goto(url.toString(), {
           waitUntil: "domcontentloaded",
@@ -62,7 +80,7 @@ export class BingProvider implements ProviderInterface {
           return results;
         }, limit);
 
-        return items.map(r => ({ ...r, source: "bing" as string }));
+        return items.map(r => ({ ...r, url: this.decodeBingRedirect(r.url), source: "bing" as string }));
       } finally {
         await page.close();
       }
