@@ -75,6 +75,17 @@ MCP server: web search and URL content extraction. No API keys required.
 | `DEFAULT_SEARCH_PROVIDER` | `duckduckgo` | Default search provider (duckduckgo, bing, searxng) |
 | `SEARXNG_URL` | `http://localhost:8099` | SearXNG instance URL |
 | `HTTP_TIMEOUT` | `15000` | Request timeout (ms) |
+| `MCP_COMPAT_MODE` | unset | Set to `legacy` to simplify `tools/list` schemas for MCP clients with weak discovery parsers |
+
+### Legacy Discovery Compatibility
+
+If your MCP client fails during discovery on array-valued JSON Schema nodes such as `enum` or `required`, set:
+
+```bash
+export MCP_COMPAT_MODE=legacy
+```
+
+This keeps tool execution unchanged, but advertises a simplified `tools/list` schema that removes array-valued schema nodes from tool metadata.
 
 ## Anti-Bot Detection
 
@@ -150,6 +161,7 @@ Blocks localhost, 127.0.0.1, ::1, .local domains.
 | Chrome not found | Install Chrome or set CHROME_PATH |
 | SearXNG 403 | Enable JSON API in settings.yml |
 | Timeout | Increase HTTP_TIMEOUT |
+| MCP discovery error: `'list' object has no attribute 'get'` | Set `MCP_COMPAT_MODE=legacy` to enable simplified discovery schemas |
 
 ## License
 

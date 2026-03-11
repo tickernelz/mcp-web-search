@@ -7,9 +7,10 @@ import { providerRegistry, type ProviderName } from "./providers/index.js";
 import { fetchAndExtract } from "./extract.js";
 import { MAX_RESULTS } from "./constants.js";
 import { toInt } from "./utils/http.js";
+import { installLegacyToolsListCompat } from "./compat.js";
 
 const DEFAULT_LIMIT = toInt(process.env.MAX_RESULTS, MAX_RESULTS);
-const server = new McpServer({ name: "mcp-web-search", version: "1.1.0" });
+const server = new McpServer({ name: "mcp-web-search", version: "1.2.3" });
 
 server.registerTool(
   "search_web",
@@ -54,6 +55,8 @@ server.registerTool(
     return { content: [{ type: "text", text: JSON.stringify(doc, null, 2) }] };
   }
 );
+
+installLegacyToolsListCompat(server);
 
 async function main() {
   const transport = new StdioServerTransport();

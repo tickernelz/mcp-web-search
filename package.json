@@ -1,6 +1,6 @@
 {
   "name": "@zhafron/mcp-web-search",
-  "version": "1.2.2",
+  "version": "1.2.3",
   "type": "module",
   "description": "MCP server: Multi-provider web search (DuckDuckGo, Bing, SearXNG) with automatic fallback, and URL content extraction — no API keys required.",
   "main": "dist/src/server.js",

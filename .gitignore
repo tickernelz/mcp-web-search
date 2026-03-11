@@ -10,6 +10,9 @@ pnpm-debug.log*
 playwright-report
 test-results
 
+# Local planning docs
+docs/plans/
+
 # OS
 .DS_Store
 Thumbs.db
