@@ -69,7 +69,7 @@ export class RedditThreadAdapter implements SiteAdapter {
     const commentLimit = Math.min(Math.max(0, options?.comment_limit ?? 30), 100);
     const commentSort = options?.comment_sort || "top";
     const maxDepth = Math.min(Math.max(0, options?.max_depth ?? 2), 8);
-    const jsonUrl = new URL(`https://www.reddit.com/comments/${threadId}.json`);
+    const jsonUrl = new URL(`https://www.reddit.com${url.pathname.replace(/\/$/, "")}.json`);
     jsonUrl.searchParams.set("raw_json", "1");
     jsonUrl.searchParams.set("sort", commentSort);
     jsonUrl.searchParams.set("limit", String(commentLimit));

@@ -153,7 +153,7 @@ test("fetchAndExtract uses Reddit JSON site adapter for Reddit thread URLs", asy
     assert.equal(result.metadata.subreddit, "r/codex");
     assert.equal(
       requests[0],
-      "https://www.reddit.com/comments/abc123.json?raw_json=1&sort=top&limit=10"
+      "https://www.reddit.com/r/codex/comments/abc123/gpt55_is_so_good.json?raw_json=1&sort=top&limit=10"
     );
   } finally {
     clearFetchCache();

@@ -27,7 +27,7 @@ function nodeResponseToFetchResponse(args: {
   body: Buffer;
   url: string;
 }): Response {
-  const response = new Response(args.body, {
+  const response = new Response(new Uint8Array(args.body), {
     status: args.status,
     statusText: args.statusText,
     headers: args.headers

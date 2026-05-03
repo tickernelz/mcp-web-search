@@ -10,7 +10,7 @@ export async function extractPdfResource(args: {
   byteLength: number;
   options?: FetchOptions;
 }): Promise<FetchResult> {
-  const pdfParse: any = (await import("pdf-parse")).default;
+  const pdfParse: any = (await import("pdf-parse/lib/pdf-parse.js")).default;
   const data = await pdfParse(args.buffer);
   const text = data.text || "";
   const format = args.options?.format === "metadata" ? "json" : "text";
