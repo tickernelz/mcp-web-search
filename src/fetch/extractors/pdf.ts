@@ -1,4 +1,4 @@
-import type { FetchOptions, FetchResult } from "../../extractors/types.js";
+import type { FetchOptions, FetchResult } from "../types.js";
 import { buildFetchResult } from "../result.js";
 
 export async function extractPdfResource(args: {

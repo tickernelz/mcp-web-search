@@ -1,6 +1,6 @@
 import { JSDOM } from "jsdom";
-import type { ExtractResult, ExtractConfig } from "./types.js";
-import { DEFAULT_CONFIG } from "./types.js";
+import type { ExtractResult, ExtractConfig } from "../types.js";
+import { DEFAULT_CONFIG } from "../types.js";
 
 function scoreNode(node: Element, config: ExtractConfig): number {
   let score = 0;

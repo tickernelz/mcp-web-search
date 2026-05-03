@@ -1,9 +1,4 @@
-import type {
-  FetchFormat,
-  FetchOptions,
-  FetchResult,
-  ResourceType
-} from "../../extractors/types.js";
+import type { FetchFormat, FetchOptions, FetchResult, ResourceType } from "../types.js";
 import { buildFetchResult } from "../result.js";
 
 function typeFromContentType(contentType: string, url: string): ResourceType {

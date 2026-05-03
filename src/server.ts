@@ -57,7 +57,11 @@ server.registerTool(
       comment_sort: z.enum(["top", "best", "new", "controversial"]).optional(),
       max_depth: z.number().int().min(0).max(8).optional(),
       timeout_ms: z.number().int().min(1000).max(120000).optional(),
-      fresh: z.boolean().optional()
+      fresh: z.boolean().optional(),
+      download: z.boolean().optional(),
+      download_dir: z.string().optional(),
+      download_ttl_seconds: z.number().int().min(60).max(604800).optional(),
+      max_download_bytes: z.number().int().min(1).max(26214400).optional()
     }
   },
   async ({
@@ -74,7 +78,11 @@ server.registerTool(
     comment_sort,
     max_depth,
     timeout_ms,
-    fresh
+    fresh,
+    download,
+    download_dir,
+    download_ttl_seconds,
+    max_download_bytes
   }) => {
     const doc = await fetchAndExtract(url, {
       format,
@@ -89,7 +97,11 @@ server.registerTool(
       comment_sort,
       max_depth,
       timeout_ms,
-      fresh
+      fresh,
+      download,
+      download_dir,
+      download_ttl_seconds,
+      max_download_bytes
     });
     return { content: [{ type: "text", text: JSON.stringify(doc, null, 2) }] };
   }

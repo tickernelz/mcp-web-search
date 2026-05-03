@@ -1,4 +1,4 @@
-import type { FetchOptions, FetchResult, ResourceType } from "../../extractors/types.js";
+import type { FetchOptions, FetchResult, ResourceType } from "../types.js";
 import { buildFetchResult } from "../result.js";
 
 function mediaType(contentType: string, url: string): ResourceType {

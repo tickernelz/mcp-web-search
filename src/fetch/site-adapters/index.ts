@@ -1,4 +1,4 @@
-import type { FetchOptions, FetchResult } from "../../extractors/types.js";
+import type { FetchOptions, FetchResult } from "../types.js";
 import type { FetchTransport } from "../http.js";
 import type { SiteAdapter } from "./types.js";
 import { RedditThreadAdapter } from "./reddit.js";

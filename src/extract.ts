@@ -1,4 +1,4 @@
-import type { FetchOptions, FetchResult, ResourceType } from "./extractors/types.js";
+import type { FetchOptions, FetchResult, ResourceType } from "./fetch/types.js";
 import { fetchCache, createCacheKey } from "./utils/cache.js";
 import { fetchResource, type FetchTransport } from "./fetch/http.js";
 import { extractHtmlResource } from "./fetch/extractors/html.js";
@@ -6,6 +6,7 @@ import { extractTextResource } from "./fetch/extractors/text.js";
 import { extractPdfResource } from "./fetch/extractors/pdf.js";
 import { extractMediaResource } from "./fetch/extractors/media.js";
 import { extractWithSiteAdapter } from "./fetch/site-adapters/index.js";
+import { saveDownloadedResource } from "./fetch/download.js";
 import { assertSafeUrl } from "./fetch/security.js";
 
 function isHtml(contentType: string, url: URL): boolean {
@@ -57,7 +58,11 @@ function cacheKeyFor(url: string, options?: FetchOptions): string {
     options?.include_comments === false ? 0 : 1,
     options?.comment_limit ?? 30,
     options?.comment_sort || "top",
-    options?.max_depth ?? 2
+    options?.max_depth ?? 2,
+    options?.download ? 1 : 0,
+    options?.download_dir || "",
+    options?.download_ttl_seconds ?? "",
+    options?.max_download_bytes ?? ""
   );
 }
 
@@ -83,7 +88,7 @@ export async function fetchAndExtract(
     return siteResult;
   }
 
-  const resource = await fetchResource(parsedUrl, options?.timeout_ms, transport);
+  const resource = await fetchResource(parsedUrl, options?.timeout_ms, transport, options);
   const finalUrl = new URL(resource.finalUrl);
   let result: FetchResult;
 
@@ -137,6 +142,16 @@ export async function fetchAndExtract(
     });
     result.resource_type = "unknown" as ResourceType;
   }
+
+  const attachment = await saveDownloadedResource({
+    buffer: resource.buffer,
+    finalUrl: resource.finalUrl,
+    contentType: resource.contentType,
+    contentDisposition: resource.response.headers.get("content-disposition"),
+    resourceType: result.resource_type,
+    options
+  });
+  if (attachment) result.attachments = [attachment];
 
   fetchCache.set(cacheKey, result);
   return result;

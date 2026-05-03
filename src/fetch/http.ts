@@ -1,6 +1,7 @@
 import http from "node:http";
 import https from "node:https";
 import { HTTP_TIMEOUT, MAX_BYTES } from "../constants.js";
+import type { FetchOptions } from "./types.js";
 import { getRandomHeaders } from "../utils/user-agent.js";
 import { assertSafeUrl, resolveSafeAddresses } from "./security.js";
 
@@ -116,7 +117,8 @@ async function fetchViaVettedAddress(url: URL, timeoutMs: number): Promise<Respo
 export async function fetchResource(
   url: URL,
   timeoutMs = HTTP_TIMEOUT,
-  transport: FetchTransport = fetchViaVettedAddress
+  transport: FetchTransport = fetchViaVettedAddress,
+  options?: FetchOptions
 ): Promise<FetchedResource> {
   await assertSafeUrl(url);
 
@@ -148,6 +150,8 @@ export async function fetchResource(
   if (!response.ok) throw new Error(`Fetch ${response.status} for ${url.toString()}`);
 
   const buffer = Buffer.from(await response.arrayBuffer());
+  const maxResponseBytes = Math.min(options?.max_download_bytes ?? MAX_BYTES, MAX_BYTES);
+  if (buffer.byteLength > maxResponseBytes) throw new Error("Content too large (downloaded)");
   return {
     response,
     finalUrl,

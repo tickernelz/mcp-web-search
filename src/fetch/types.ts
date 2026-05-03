@@ -28,6 +28,10 @@ export interface FetchOptions {
   max_depth?: number;
   timeout_ms?: number;
   fresh?: boolean;
+  download?: boolean;
+  download_dir?: string;
+  download_ttl_seconds?: number;
+  max_download_bytes?: number;
 }
 
 export interface FetchMetadata {
@@ -65,6 +69,18 @@ export interface FetchMedia {
   audio?: FetchLink[];
 }
 
+export interface FetchAttachment {
+  kind: "download";
+  path: string;
+  filename: string;
+  original_filename?: string;
+  content_type?: string;
+  resource_type: ResourceType;
+  byte_length: number;
+  sha256: string;
+  expires_at?: string;
+}
+
 export interface FetchResult {
   url: string;
   final_url: string;
@@ -76,7 +92,7 @@ export interface FetchResult {
   metadata: FetchMetadata;
   links?: FetchLink[];
   media?: FetchMedia;
-  attachments?: Array<Record<string, unknown>>;
+  attachments?: FetchAttachment[];
   truncated: boolean;
   original_length: number;
   start_index: number;
@@ -106,11 +122,3 @@ export const DEFAULT_CONFIG: ExtractConfig = {
   columnThreshold: 0.25,
   tagBoosts: { article: 1.7, main: 1.5, section: 1.3 }
 };
-
-export interface ContentChunk {
-  content: string;
-  type: "heading" | "paragraph" | "list" | "code" | "text";
-  position: number;
-  score: number;
-  length: number;
-}

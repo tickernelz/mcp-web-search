@@ -1,8 +1,8 @@
 import { JSDOM } from "jsdom";
 import { Readability } from "@mozilla/readability";
-import { htmlToMarkdown } from "../../extractors/markdown.js";
-import { extractWithReadabilityAlt } from "../../extractors/readability-alt.js";
-import type { FetchLink, FetchMedia, FetchOptions, FetchResult } from "../../extractors/types.js";
+import { htmlToMarkdown } from "../content/markdown.js";
+import { extractWithReadabilityAlt } from "../content/readability-alt.js";
+import type { FetchLink, FetchMedia, FetchOptions, FetchResult } from "../types.js";
 import { buildFetchResult } from "../result.js";
 
 function textOf(element: Element | null): string | undefined {

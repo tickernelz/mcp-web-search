@@ -27,6 +27,7 @@ MCP server: multi-provider web search plus a Fetch v2 URL/resource loader. No AP
 - `start_index` and `next_start_index` - pagination state
 - `truncated` and `original_length` - truncation state
 - `links` and `media` - optional summaries when requested
+- `attachments` - optional local file artifacts when `download: true` is explicitly requested
 
 The old `mode` option was removed. Use `max_length` and `start_index` directly.
 
@@ -193,6 +194,10 @@ Supported options:
 | `max_depth` | Maximum comment nesting depth |
 | `timeout_ms` | Request timeout override |
 | `fresh` | Bypass in-memory cache |
+| `download` | Save the original fetched bytes to a managed local temp file and return it in `attachments`; default false |
+| `download_dir` | Optional output directory for downloads; defaults to the system temp directory |
+| `download_ttl_seconds` | Cleanup TTL for managed downloads, default 86400 seconds |
+| `max_download_bytes` | Per-download byte cap, additionally capped by `MAX_BYTES` |
 
 Output shape:
 
@@ -216,9 +221,23 @@ Output shape:
   "original_length": 1200,
   "start_index": 0,
   "next_start_index": null,
+  "attachments": [
+    {
+      "kind": "download",
+      "path": "/tmp/mcp-web-search/downloads/uuid-file.png",
+      "filename": "uuid-file.png",
+      "content_type": "image/png",
+      "resource_type": "image",
+      "byte_length": 8090,
+      "sha256": "...",
+      "expires_at": "2026-05-04T00:00:00.000Z"
+    }
+  ],
   "warnings": []
 }
 ```
+
+`attachments` is only present when `download: true`. Binary and media URLs stay metadata-only by default; archives are downloaded only when requested and are not auto-extracted.
 
 ### Reddit Thread Extraction
 
@@ -237,6 +256,20 @@ Input example:
 ```
 
 The output uses `resource_type: "site"` and `metadata.extractor: "reddit-thread"`.
+
+## Repository Structure
+
+Fetch v2 code is intentionally grouped under `src/fetch/`:
+
+- `src/fetch/types.ts` - Fetch v2 request/result types
+- `src/fetch/http.ts` and `src/fetch/security.ts` - network transport and URL safety
+- `src/fetch/download.ts` - controlled local download artifacts
+- `src/fetch/result.ts` and `src/fetch/truncation.ts` - normalized result envelope and pagination
+- `src/fetch/content/` - shared HTML content helpers such as markdown conversion and readability fallback
+- `src/fetch/extractors/` - MIME/resource extractors for HTML, text/data, PDF, and media metadata
+- `src/fetch/site-adapters/` - domain-specific adapters such as Reddit threads
+
+Search providers remain separate under `src/providers/`.
 
 ## SearXNG Setup
 

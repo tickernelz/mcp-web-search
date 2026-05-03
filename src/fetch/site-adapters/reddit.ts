@@ -1,5 +1,5 @@
 import { MAX_BYTES } from "../../constants.js";
-import type { FetchFormat, FetchOptions, FetchResult } from "../../extractors/types.js";
+import type { FetchFormat, FetchOptions, FetchResult } from "../types.js";
 import { fetchResource, type FetchTransport } from "../http.js";
 import { buildFetchResult } from "../result.js";
 import type { SiteAdapter } from "./types.js";
@@ -74,7 +74,7 @@ export class RedditThreadAdapter implements SiteAdapter {
     jsonUrl.searchParams.set("sort", commentSort);
     jsonUrl.searchParams.set("limit", String(commentLimit));
 
-    const resource = await fetchResource(jsonUrl, options?.timeout_ms, transport);
+    const resource = await fetchResource(jsonUrl, options?.timeout_ms, transport, options);
     const response = resource.response;
     if (resource.byteLength > MAX_BYTES) throw new Error("Content too large (downloaded)");
 

@@ -4,8 +4,8 @@ import type {
   FetchOptions,
   FetchResult,
   ResourceType
-} from "../extractors/types.js";
-import { paginateContent } from "../extractors/truncation.js";
+} from "./types.js";
+import { paginateContent } from "./truncation.js";
 
 export interface BuildResultInput {
   url: string;
