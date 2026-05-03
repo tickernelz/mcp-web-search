@@ -1,255 +1,143 @@
-import { JSDOM } from "jsdom";
-import { Readability } from "@mozilla/readability";
-import { extractWithReadabilityAlt } from "./extractors/readability-alt.js";
-import { htmlToMarkdown } from "./extractors/markdown.js";
-import { applySmartTruncation } from "./extractors/truncation.js";
-import type { ExtractionOptions } from "./extractors/types.js";
-import { HTTP_TIMEOUT, MAX_BYTES } from "./constants.js";
-import { fetchWithTimeout } from "./utils/http.js";
-import { getRandomHeaders } from "./utils/user-agent.js";
+import type { FetchOptions, FetchResult, ResourceType } from "./extractors/types.js";
 import { fetchCache, createCacheKey } from "./utils/cache.js";
+import { fetchResource, type FetchTransport } from "./fetch/http.js";
+import { extractHtmlResource } from "./fetch/extractors/html.js";
+import { extractTextResource } from "./fetch/extractors/text.js";
+import { extractPdfResource } from "./fetch/extractors/pdf.js";
+import { extractMediaResource } from "./fetch/extractors/media.js";
+import { extractWithSiteAdapter } from "./fetch/site-adapters/index.js";
+import { assertSafeUrl } from "./fetch/security.js";
 
-export interface ExtractedDoc {
-  title?: string;
-  byline?: string;
-  siteName?: string;
-  lang?: string;
-  text?: string;
-  markdown?: string;
-  url: string;
-  length?: number;
-  format: "markdown" | "text";
-  truncated?: boolean;
-  original_length?: number;
-  truncation_ratio?: number;
+function isHtml(contentType: string, url: URL): boolean {
+  const lower = contentType.toLowerCase();
+  return lower.includes("text/html") || lower.includes("application/xhtml") || url.pathname === "/";
 }
 
-function isBlockedHost(hostname: string): boolean {
-  const lower = hostname.toLowerCase();
-  if (lower === "localhost" || lower === "127.0.0.1" || lower === "::1") return true;
-  if (lower.endsWith(".local") || lower.endsWith(".localhost")) return true;
-  return false;
+function isPdf(contentType: string, url: URL): boolean {
+  const lower = contentType.toLowerCase();
+  return lower.includes("application/pdf") || url.pathname.toLowerCase().endsWith(".pdf");
 }
 
-function fallbackExtraction(
-  html: string,
-  url: string
-): { text: string; title?: string; byline?: string; siteName?: string } {
-  try {
-    const dom = new JSDOM(html, { url });
-    const reader = new Readability(dom.window.document);
-    const article = reader.parse();
-
-    if (article) {
-      return {
-        title: article.title ?? undefined,
-        byline: (article as any).byline ?? undefined,
-        siteName: (article as any).siteName ?? undefined,
-        text: (article as any).textContent ?? ""
-      };
-    }
-
-    const text = dom.window.document.body.textContent || "";
-    return { text, title: dom.window.document.title };
-  } catch {
-    return { text: "" };
-  }
+function isTextLike(contentType: string, url: URL): boolean {
+  const lower = contentType.toLowerCase();
+  const path = url.pathname.toLowerCase();
+  return (
+    lower.startsWith("text/") ||
+    lower.includes("application/json") ||
+    lower.includes("application/xml") ||
+    lower.includes("+json") ||
+    lower.includes("+xml") ||
+    /\.(txt|md|json|xml|csv|yaml|yml|log)$/.test(path)
+  );
 }
+
+function isMediaLike(contentType: string, url: URL): boolean {
+  const lower = contentType.toLowerCase();
+  const path = url.pathname.toLowerCase();
+  return (
+    lower.startsWith("image/") ||
+    lower.startsWith("audio/") ||
+    lower.startsWith("video/") ||
+    /\.(png|jpe?g|gif|webp|bmp|tiff?|svg|mp3|wav|ogg|flac|m4a|mp4|webm|mov|mkv|avi|zip|tar|tgz|gz|bz2|7z)$/.test(
+      path
+    )
+  );
+}
+
+function cacheKeyFor(url: string, options?: FetchOptions): string {
+  return createCacheKey(
+    "fetch-v2",
+    url,
+    options?.format || "markdown",
+    options?.max_length ?? 25000,
+    options?.start_index ?? 0,
+    options?.engine || "auto",
+    options?.include_links ? 1 : 0,
+    options?.include_media ? 1 : 0,
+    options?.include_comments === false ? 0 : 1,
+    options?.comment_limit ?? 30,
+    options?.comment_sort || "top",
+    options?.max_depth ?? 2
+  );
+}
+
+export type { FetchOptions, FetchResult };
 
 export async function fetchAndExtract(
   url: string,
-  options?: ExtractionOptions
-): Promise<ExtractedDoc> {
-  const u = new URL(url);
-  if (isBlockedHost(u.hostname)) {
-    throw new Error("Blocked localhost/private URL");
+  options?: FetchOptions,
+  transport?: FetchTransport
+): Promise<FetchResult> {
+  const parsedUrl = new URL(url);
+  await assertSafeUrl(parsedUrl);
+
+  const cacheKey = cacheKeyFor(parsedUrl.toString(), options);
+  if (!options?.fresh) {
+    const cached = fetchCache.get(cacheKey) as FetchResult | undefined;
+    if (cached) return cached;
   }
 
-  const cacheKey = createCacheKey(
-    "fetch",
-    url,
-    options?.mode || "standard",
-    options?.format || "markdown"
-  );
-  const cached = fetchCache.get(cacheKey) as ExtractedDoc | undefined;
-  if (cached) return cached;
-
-  const res = await fetchWithTimeout(
-    u.toString(),
-    { redirect: "follow", headers: getRandomHeaders() },
-    HTTP_TIMEOUT
-  );
-  if (!res.ok) throw new Error(`Fetch ${res.status} for ${url}`);
-
-  const lenHeader = res.headers.get("content-length");
-  const len = Number(lenHeader || "0");
-  if (len > 0 && len > MAX_BYTES) throw new Error(`Content too large: ${len} bytes`);
-
-  const ct = res.headers.get("content-type") || "";
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.byteLength > MAX_BYTES) throw new Error(`Content too large (downloaded)`);
-
-  if (
-    ct.includes("text/plain") ||
-    ct.includes("text/markdown") ||
-    u.pathname.toLowerCase().endsWith(".md")
-  ) {
-    const rawText = buf.toString("utf8");
-    const truncationResult = applySmartTruncation(rawText, "markdown", options);
-    const result: ExtractedDoc = {
-      text: truncationResult.content,
-      markdown: truncationResult.content,
-      url,
-      title: u.pathname.split("/").pop(),
-      format: "markdown",
-      truncated: truncationResult.truncated,
-      original_length: truncationResult.original_length,
-      truncation_ratio: truncationResult.truncated
-        ? truncationResult.final_length / truncationResult.original_length
-        : undefined
-    };
-    fetchCache.set(cacheKey, result);
-    return result;
+  const siteResult = await extractWithSiteAdapter(parsedUrl, options, transport);
+  if (siteResult) {
+    fetchCache.set(cacheKey, siteResult);
+    return siteResult;
   }
 
-  if (ct.includes("application/pdf") || u.pathname.toLowerCase().endsWith(".pdf")) {
-    const pdfParse: any = (await import("pdf-parse")).default;
-    const data = await pdfParse(buf);
-    const text = data.text || "";
-    const truncationResult = applySmartTruncation(text, "text", options);
-    const result: ExtractedDoc = {
-      text: truncationResult.content,
-      url,
-      title: data.info?.Title,
-      length: data.numpages,
-      format: "text",
-      truncated: truncationResult.truncated,
-      original_length: truncationResult.original_length,
-      truncation_ratio: truncationResult.truncated
-        ? truncationResult.final_length / truncationResult.original_length
-        : undefined
-    };
-    fetchCache.set(cacheKey, result);
-    return result;
+  const resource = await fetchResource(parsedUrl, options?.timeout_ms, transport);
+  const finalUrl = new URL(resource.finalUrl);
+  let result: FetchResult;
+
+  if (isPdf(resource.contentType, finalUrl)) {
+    result = await extractPdfResource({
+      buffer: resource.buffer,
+      url: parsedUrl.toString(),
+      finalUrl: resource.finalUrl,
+      contentType: resource.contentType,
+      status: resource.response.status,
+      byteLength: resource.byteLength,
+      options
+    });
+  } else if (isHtml(resource.contentType, finalUrl)) {
+    result = extractHtmlResource({
+      html: resource.buffer.toString("utf8"),
+      url: parsedUrl.toString(),
+      finalUrl: resource.finalUrl,
+      contentType: resource.contentType,
+      status: resource.response.status,
+      byteLength: resource.byteLength,
+      options
+    });
+  } else if (isTextLike(resource.contentType, finalUrl)) {
+    result = extractTextResource({
+      rawText: resource.buffer.toString("utf8"),
+      url: parsedUrl.toString(),
+      finalUrl: resource.finalUrl,
+      contentType: resource.contentType,
+      status: resource.response.status,
+      byteLength: resource.byteLength,
+      options
+    });
+  } else if (isMediaLike(resource.contentType, finalUrl)) {
+    result = extractMediaResource({
+      url: parsedUrl.toString(),
+      finalUrl: resource.finalUrl,
+      contentType: resource.contentType,
+      status: resource.response.status,
+      byteLength: resource.byteLength,
+      options
+    });
+  } else {
+    result = extractMediaResource({
+      url: parsedUrl.toString(),
+      finalUrl: resource.finalUrl,
+      contentType: resource.contentType,
+      status: resource.response.status,
+      byteLength: resource.byteLength,
+      options
+    });
+    result.resource_type = "unknown" as ResourceType;
   }
 
-  const html = buf.toString("utf8");
-
-  const extracted = extractWithReadabilityAlt(html, url);
-
-  const requestedFormat = options?.format || "markdown";
-  const shouldReturnMarkdown = requestedFormat === "markdown";
-  const shouldReturnText = requestedFormat === "text";
-  const shouldReturnHtml = requestedFormat === "html";
-
-  if (extracted && extracted.textContent && extracted.textContent.length > 0) {
-    const markdown = htmlToMarkdown(extracted.content);
-
-    if (shouldReturnMarkdown && markdown) {
-      const truncationResult = applySmartTruncation(markdown, "markdown", options);
-      const result: ExtractedDoc = {
-        title: extracted.title || undefined,
-        markdown: truncationResult.content,
-        url,
-        length: extracted.length,
-        format: "markdown",
-        truncated: truncationResult.truncated,
-        original_length: truncationResult.original_length,
-        truncation_ratio: truncationResult.truncated
-          ? truncationResult.final_length / truncationResult.original_length
-          : undefined
-      };
-      fetchCache.set(cacheKey, result);
-      return result;
-    }
-
-    if (shouldReturnText) {
-      const truncationResult = applySmartTruncation(extracted.textContent, "text", options);
-      const result: ExtractedDoc = {
-        title: extracted.title || undefined,
-        text: truncationResult.content,
-        url,
-        length: extracted.length,
-        format: "text",
-        truncated: truncationResult.truncated,
-        original_length: truncationResult.original_length,
-        truncation_ratio: truncationResult.truncated
-          ? truncationResult.final_length / truncationResult.original_length
-          : undefined
-      };
-      fetchCache.set(cacheKey, result);
-      return result;
-    }
-
-    if (shouldReturnHtml && extracted.content) {
-      const truncationResult = applySmartTruncation(extracted.content, "markdown", options);
-      const result: ExtractedDoc = {
-        title: extracted.title || undefined,
-        markdown: truncationResult.content,
-        url,
-        length: extracted.length,
-        format: "markdown",
-        truncated: truncationResult.truncated,
-        original_length: truncationResult.original_length,
-        truncation_ratio: truncationResult.truncated
-          ? truncationResult.final_length / truncationResult.original_length
-          : undefined
-      };
-      fetchCache.set(cacheKey, result);
-      return result;
-    }
-
-    if (markdown) {
-      const truncationResult = applySmartTruncation(markdown, "markdown", options);
-      const result: ExtractedDoc = {
-        title: extracted.title || undefined,
-        markdown: truncationResult.content,
-        url,
-        length: extracted.length,
-        format: "markdown",
-        truncated: truncationResult.truncated,
-        original_length: truncationResult.original_length,
-        truncation_ratio: truncationResult.truncated
-          ? truncationResult.final_length / truncationResult.original_length
-          : undefined
-      };
-      fetchCache.set(cacheKey, result);
-      return result;
-    }
-
-    const truncationResult = applySmartTruncation(extracted.textContent, "text", options);
-    const result: ExtractedDoc = {
-      title: extracted.title || undefined,
-      text: truncationResult.content,
-      url,
-      length: extracted.length,
-      format: "text",
-      truncated: truncationResult.truncated,
-      original_length: truncationResult.original_length,
-      truncation_ratio: truncationResult.truncated
-        ? truncationResult.final_length / truncationResult.original_length
-        : undefined
-    };
-    fetchCache.set(cacheKey, result);
-    return result;
-  }
-
-  const fallback = fallbackExtraction(html, url);
-  const truncationResult = applySmartTruncation(fallback.text, "text", options);
-
-  const result: ExtractedDoc = {
-    title: fallback.title,
-    byline: fallback.byline,
-    siteName: fallback.siteName,
-    text: truncationResult.content,
-    url,
-    format: "text",
-    truncated: truncationResult.truncated,
-    original_length: truncationResult.original_length,
-    truncation_ratio: truncationResult.truncated
-      ? truncationResult.final_length / truncationResult.original_length
-      : undefined
-  };
   fetchCache.set(cacheKey, result);
   return result;
 }

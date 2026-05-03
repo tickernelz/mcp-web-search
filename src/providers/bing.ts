@@ -1,7 +1,11 @@
 import type { ProviderInterface, SearchItem, ProviderName } from "../types/provider.js";
 import { PUPPETEER_TIMEOUT } from "../constants.js";
 import { browserPool } from "../utils/browser-pool.js";
-import { getRandomUserAgent, getAcceptLanguageHeader, getMarketFromLang } from "../utils/user-agent.js";
+import {
+  getRandomUserAgent,
+  getAcceptLanguageHeader,
+  getMarketFromLang
+} from "../utils/user-agent.js";
 import { searchCache, createCacheKey } from "../utils/cache.js";
 
 export class BingProvider implements ProviderInterface {
@@ -80,7 +84,11 @@ export class BingProvider implements ProviderInterface {
           return results;
         }, limit);
 
-        return items.map(r => ({ ...r, url: this.decodeBingRedirect(r.url), source: "bing" as string }));
+        return items.map(r => ({
+          ...r,
+          url: this.decodeBingRedirect(r.url),
+          source: "bing" as string
+        }));
       } finally {
         await page.close();
       }

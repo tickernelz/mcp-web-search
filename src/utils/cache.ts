@@ -11,6 +11,7 @@ class MemoryCache<T> {
 
   constructor() {
     this.cleanupInterval = setInterval(() => this.cleanup(), CACHE_TTL_MS);
+    this.cleanupInterval.unref?.();
   }
 
   private cleanup(): void {

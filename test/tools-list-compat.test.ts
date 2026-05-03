@@ -1,10 +1,12 @@
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import { once } from "node:events";
+import { dirname, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
 import test from "node:test";
 import { LATEST_PROTOCOL_VERSION } from "@modelcontextprotocol/sdk/types.js";
 
-const REPO_ROOT = "/Users/zhafron/Projects/mcp-web-search";
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 class JsonRpcStream {
   private buffer = Buffer.alloc(0);
@@ -102,7 +104,10 @@ async function listTools(env: NodeJS.ProcessEnv = {}) {
   });
 
   const initializeResponse = (await stream.next()) as { result?: unknown; error?: unknown };
-  assert.ok(initializeResponse.result, `initialize failed: ${JSON.stringify(initializeResponse.error)}`);
+  assert.ok(
+    initializeResponse.result,
+    `initialize failed: ${JSON.stringify(initializeResponse.error)}`
+  );
 
   send({
     jsonrpc: "2.0",
@@ -136,7 +141,10 @@ test("default discovery schema still contains array nodes", async () => {
 
   try {
     assert.ok(server.tools.length > 0, `no tools returned; stderr: ${server.stderr}`);
-    assert.equal(server.tools.some(tool => hasArrayNode(tool.inputSchema)), true);
+    assert.equal(
+      server.tools.some(tool => hasArrayNode(tool.inputSchema)),
+      true
+    );
   } finally {
     await server.dispose();
   }

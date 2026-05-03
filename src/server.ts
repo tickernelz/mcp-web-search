@@ -42,16 +42,55 @@ server.registerTool(
   {
     title: "Fetch and Extract URL Content",
     description:
-      "Fetches content from a URL (HTML/PDF) and extracts readable text. Supports truncation modes: compact (~3000 chars), standard (~8000 chars, default), full (no truncation). Output formats: markdown (default), text, html.",
+      "Fetches a URL-like resource and returns a normalized Fetch v2 envelope. Supports HTML, PDF, text/data, media metadata, site adapters such as Reddit threads, pagination via start_index, and optional link/media/comment extraction.",
     inputSchema: {
       url: z.string().url(),
-      mode: z.enum(["compact", "standard", "full"]).optional(),
-      max_length: z.number().int().min(1000).max(100000).optional(),
-      format: z.enum(["markdown", "text", "html"]).optional()
+      format: z.enum(["markdown", "text", "html", "json", "raw", "metadata"]).optional(),
+      max_length: z.number().int().min(0).max(100000).optional(),
+      start_index: z.number().int().min(0).optional(),
+      engine: z.enum(["auto", "http", "browser"]).optional(),
+      include_links: z.boolean().optional(),
+      include_media: z.boolean().optional(),
+      include_metadata: z.boolean().optional(),
+      include_comments: z.boolean().optional(),
+      comment_limit: z.number().int().min(0).max(100).optional(),
+      comment_sort: z.enum(["top", "best", "new", "controversial"]).optional(),
+      max_depth: z.number().int().min(0).max(8).optional(),
+      timeout_ms: z.number().int().min(1000).max(120000).optional(),
+      fresh: z.boolean().optional()
     }
   },
-  async ({ url, mode, max_length, format }) => {
-    const doc = await fetchAndExtract(url, { mode, max_length, format });
+  async ({
+    url,
+    format,
+    max_length,
+    start_index,
+    engine,
+    include_links,
+    include_media,
+    include_metadata,
+    include_comments,
+    comment_limit,
+    comment_sort,
+    max_depth,
+    timeout_ms,
+    fresh
+  }) => {
+    const doc = await fetchAndExtract(url, {
+      format,
+      max_length,
+      start_index,
+      engine,
+      include_links,
+      include_media,
+      include_metadata,
+      include_comments,
+      comment_limit,
+      comment_sort,
+      max_depth,
+      timeout_ms,
+      fresh
+    });
     return { content: [{ type: "text", text: JSON.stringify(doc, null, 2) }] };
   }
 );

@@ -1,5 +1,13 @@
-import { ListToolsRequestSchema, type ListToolsResult, type Tool } from "@modelcontextprotocol/sdk/types.js";
-import { normalizeObjectSchema, type AnySchema, type ZodRawShapeCompat } from "@modelcontextprotocol/sdk/server/zod-compat.js";
+import {
+  ListToolsRequestSchema,
+  type ListToolsResult,
+  type Tool
+} from "@modelcontextprotocol/sdk/types.js";
+import {
+  normalizeObjectSchema,
+  type AnySchema,
+  type ZodRawShapeCompat
+} from "@modelcontextprotocol/sdk/server/zod-compat.js";
 import { toJsonSchemaCompat } from "@modelcontextprotocol/sdk/server/zod-json-schema-compat.js";
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 
@@ -71,7 +79,12 @@ function sanitizeJsonSchema(value: unknown): unknown {
       continue;
     }
 
-    if (key === "properties" && rawValue && typeof rawValue === "object" && !Array.isArray(rawValue)) {
+    if (
+      key === "properties" &&
+      rawValue &&
+      typeof rawValue === "object" &&
+      !Array.isArray(rawValue)
+    ) {
       const nextProperties: JsonObject = {};
 
       for (const [propertyName, propertySchema] of Object.entries(rawValue as JsonObject)) {
@@ -111,7 +124,10 @@ function toToolSchema(schema: unknown, pipeStrategy: "input" | "output") {
 }
 
 function getRegisteredTools(server: McpServer) {
-  return ((server as unknown as { _registeredTools: Record<string, RegisteredTool> })._registeredTools ?? {});
+  return (
+    (server as unknown as { _registeredTools: Record<string, RegisteredTool> })._registeredTools ??
+    {}
+  );
 }
 
 function buildCompatToolsList(server: McpServer): ListToolsResult {
@@ -125,14 +141,18 @@ function buildCompatToolsList(server: McpServer): ListToolsResult {
           name,
           title: tool.title,
           description: tool.description,
-          inputSchema: sanitizeJsonSchema(toToolSchema(tool.inputSchema, "input")) as Tool["inputSchema"],
+          inputSchema: sanitizeJsonSchema(
+            toToolSchema(tool.inputSchema, "input")
+          ) as Tool["inputSchema"],
           annotations: tool.annotations,
           execution: tool.execution,
           _meta: tool._meta
         };
 
         if (tool.outputSchema) {
-          compatTool.outputSchema = sanitizeJsonSchema(toToolSchema(tool.outputSchema, "output")) as Tool["outputSchema"];
+          compatTool.outputSchema = sanitizeJsonSchema(
+            toToolSchema(tool.outputSchema, "output")
+          ) as Tool["outputSchema"];
         }
 
         return compatTool;
