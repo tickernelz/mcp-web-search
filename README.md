@@ -4,45 +4,24 @@
 [![npm downloads](https://img.shields.io/npm/dm/@zhafron/mcp-web-search)](https://www.npmjs.com/package/@zhafron/mcp-web-search)
 [![license](https://img.shields.io/npm/l/@zhafron/mcp-web-search)](https://www.npmjs.com/package/@zhafron/mcp-web-search)
 
-MCP server: multi-provider web search plus a Fetch v2 URL/resource loader. No API keys required.
+MCP server for web search and URL/resource loading. It works without API keys by default and stays local-first: search uses free providers, `fetch_url` extracts useful content from URLs, and binary/media downloads only happen when explicitly requested.
 
 ## Features
 
-- **search_web** - Multi-provider web search with automatic fallback (DuckDuckGo, Bing, SearXNG)
-- **fetch_url** - Universal URL/resource loader with normalized Fetch v2 output
-- Fetch v2 supports HTML, PDF, text, Markdown, JSON/XML/CSV, media metadata, and site adapters
-- Reddit thread URLs are extracted through Reddit JSON endpoints instead of brittle HTML scraping
-- Pagination with `start_index` and `max_length` for long resources
-- Optional link and media summaries for HTML pages
-- Stronger URL safety checks for localhost, private IPs, link-local addresses, and redirects
-
-## Breaking Changes in Fetch v2
-
-`fetch_url` no longer returns top-level `markdown` or `text` fields. It now returns a single normalized envelope:
-
-- `content` - extracted content string
-- `format` - format of `content`, such as `markdown`, `text`, `json`, `html`, or `raw`
-- `resource_type` - detected resource type, such as `html`, `pdf`, `text`, `json`, `image`, `site`, or `unknown`
-- `metadata` - status, content type, byte length, extractor name, and extractor-specific fields
-- `start_index` and `next_start_index` - pagination state
-- `truncated` and `original_length` - truncation state
-- `links` and `media` - optional summaries when requested
-- `attachments` - optional local file artifacts when `download: true` is explicitly requested
-
-The old `mode` option was removed. Use `max_length` and `start_index` directly.
-
-## Providers
-
-| Provider | API Key Required | Description |
-|----------|------------------|-------------|
-| **DuckDuckGo** | No | HTML scraping, fast and simple |
-| **Bing** | No | Puppeteer-based search (requires Chrome) |
-| **SearXNG** | No | Self-hosted meta-search, unlimited usage |
+- `search_web` - multi-provider web search with automatic fallback across DuckDuckGo, Bing, and SearXNG.
+- `fetch_url` - universal URL/resource loader for HTML, PDF, text, Markdown, JSON, XML, CSV, media metadata, and supported site-specific URLs.
+- Clean normalized output with one `content` field plus metadata, pagination, links, media, attachments, and warnings.
+- Reddit thread extraction through Reddit JSON endpoints instead of brittle Reddit HTML scraping.
+- Long-resource pagination with `max_length`, `start_index`, and `next_start_index`.
+- Optional HTML link/media summaries.
+- Optional local download artifacts with `download: true`.
+- SSRF protection for localhost, private IPs, link-local ranges, IPv6 private ranges, and unsafe redirects.
+- No paid API required.
 
 ## Requirements
 
 - Node.js 18+
-- Chrome/Chromium for the Bing provider
+- Chrome/Chromium only if you use the Bing provider
 
 ## MCP Configuration
 
@@ -72,7 +51,7 @@ The old `mode` option was removed. Use `max_length` and `start_index` directly.
 }
 ```
 
-### With Custom Configuration
+### Custom Configuration
 
 ```json
 {
@@ -89,66 +68,43 @@ The old `mode` option was removed. Use `max_length` and `start_index` directly.
 }
 ```
 
-## Environment Variables
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `DEFAULT_SEARCH_PROVIDER` | `duckduckgo` | Default search provider (`duckduckgo`, `bing`, `searxng`) |
-| `SEARXNG_URL` | `http://localhost:8099` | SearXNG instance URL |
-| `HTTP_TIMEOUT` | `15000` | Request timeout in milliseconds |
-| `MAX_BYTES` | `20971520` | Maximum downloaded response size |
-| `MCP_COMPAT_MODE` | unset | Set to `legacy` to simplify `tools/list` schemas for MCP clients with weak discovery parsers |
-
-### Legacy Discovery Compatibility
-
-If your MCP client fails during discovery on array-valued JSON Schema nodes such as `enum` or `required`, set `MCP_COMPAT_MODE=legacy`.
-
-This keeps tool execution unchanged, but advertises a simplified `tools/list` schema that removes array-valued schema nodes from tool metadata.
-
-## Anti-Bot Detection
-
-This package uses realistic rotating user agents for general HTTP requests:
-
-- Random user agents from real browsers
-- Desktop device category for consistency
-- Different user agent per request
-
-Site adapters may use site-appropriate descriptive user agents. For example, the Reddit adapter uses a descriptive MCP user agent for JSON endpoints.
-
-## Chrome Setup for Bing Provider
-
-| OS | Command |
-|----|---------|
-| Ubuntu/Debian | `sudo apt install chromium-browser` |
-| Fedora | `sudo dnf install chromium` |
-| Arch | `sudo pacman -S chromium` |
-| macOS | `brew install --cask google-chrome` |
-
-Custom path: `export CHROME_PATH=/path/to/chrome`
-
 ## Tools
 
 ### search_web
+
+Search the web through one provider or through the fallback chain.
 
 Input:
 
 ```json
 {
-  "q": "search query",
+  "q": "openai codex reddit review",
   "limit": 10,
   "lang": "en",
   "provider": "duckduckgo"
 }
 ```
 
-`provider` can be `duckduckgo`, `bing`, or `searxng`.
+Options:
+
+| Option     | Description                                           |
+| ---------- | ----------------------------------------------------- |
+| `q`        | Search query                                          |
+| `limit`    | Number of results, 1-50                               |
+| `lang`     | Search language, default `en`                         |
+| `provider` | Optional provider: `duckduckgo`, `bing`, or `searxng` |
 
 Output:
 
 ```json
 {
   "items": [
-    { "title": "...", "url": "https://example.com", "snippet": "...", "source": "duckduckgo" }
+    {
+      "title": "Example Result",
+      "url": "https://example.com",
+      "snippet": "Result summary...",
+      "source": "duckduckgo"
+    }
   ],
   "providerUsed": "duckduckgo",
   "fallbackUsed": false,
@@ -156,13 +112,15 @@ Output:
 }
 ```
 
-Automatic fallback order is based on the selected provider:
+Fallback order:
 
 - DuckDuckGo → SearXNG → Bing
 - SearXNG → DuckDuckGo → Bing
 - Bing → DuckDuckGo → SearXNG
 
 ### fetch_url
+
+Fetch a URL and return extracted content plus metadata in a normalized envelope.
 
 Input:
 
@@ -177,29 +135,29 @@ Input:
 }
 ```
 
-Supported options:
+Options:
 
-| Option | Description |
-|--------|-------------|
-| `url` | URL to fetch |
-| `format` | `markdown`, `text`, `html`, `json`, `raw`, or `metadata` |
-| `max_length` | Maximum returned content characters, default 25000 |
-| `start_index` | Start content from this character index |
-| `engine` | `auto`, `http`, or `browser`; browser is reserved for future optional fallback |
-| `include_links` | Include extracted links for HTML pages |
-| `include_media` | Include extracted image/video/audio references for HTML pages |
-| `include_comments` | Include comments for site adapters that support comments, default true for Reddit |
-| `comment_limit` | Maximum comments for comment-capable adapters, max 100 |
-| `comment_sort` | `top`, `best`, `new`, or `controversial` |
-| `max_depth` | Maximum comment nesting depth |
-| `timeout_ms` | Request timeout override |
-| `fresh` | Bypass in-memory cache |
-| `download` | Save the original fetched bytes to a managed local temp file and return it in `attachments`; default false |
-| `download_dir` | Optional output directory for downloads; defaults to the system temp directory |
-| `download_ttl_seconds` | Cleanup TTL for managed downloads, default 86400 seconds |
-| `max_download_bytes` | Per-download byte cap, additionally capped by `MAX_BYTES` |
+| Option                 | Description                                                                                       |
+| ---------------------- | ------------------------------------------------------------------------------------------------- |
+| `url`                  | URL to fetch                                                                                      |
+| `format`               | `markdown`, `text`, `html`, `json`, `raw`, or `metadata`                                          |
+| `max_length`           | Maximum returned content characters, default 25000                                                |
+| `start_index`          | Start content from this character index                                                           |
+| `engine`               | `auto`, `http`, or `browser`; browser fallback is reserved for future optional support            |
+| `include_links`        | Include extracted links for HTML pages                                                            |
+| `include_media`        | Include extracted image/video/audio references for HTML pages                                     |
+| `include_comments`     | Include comments for site adapters that support comments, default true for Reddit                 |
+| `comment_limit`        | Maximum comments for comment-capable adapters, max 100                                            |
+| `comment_sort`         | `top`, `best`, `new`, or `controversial`                                                          |
+| `max_depth`            | Maximum comment nesting depth                                                                     |
+| `timeout_ms`           | Request timeout override                                                                          |
+| `fresh`                | Bypass in-memory cache                                                                            |
+| `download`             | Save original fetched bytes to a managed local file and return it in `attachments`; default false |
+| `download_dir`         | Optional output directory for downloads; defaults to the system temp directory                    |
+| `download_ttl_seconds` | Cleanup TTL for managed downloads, default 86400 seconds                                          |
+| `max_download_bytes`   | Response/download byte cap override, additionally capped by `MAX_BYTES`                           |
 
-Output shape:
+Output:
 
 ```json
 {
@@ -217,29 +175,76 @@ Output shape:
     "extractor": "html",
     "fetched_at": "2026-05-03T00:00:00.000Z"
   },
+  "links": [],
+  "media": {
+    "images": [],
+    "videos": [],
+    "audio": []
+  },
   "truncated": false,
   "original_length": 1200,
   "start_index": 0,
   "next_start_index": null,
-  "attachments": [
-    {
-      "kind": "download",
-      "path": "/tmp/mcp-web-search/downloads/uuid-file.png",
-      "filename": "uuid-file.png",
-      "content_type": "image/png",
-      "resource_type": "image",
-      "byte_length": 8090,
-      "sha256": "...",
-      "expires_at": "2026-05-04T00:00:00.000Z"
-    }
-  ],
   "warnings": []
 }
 ```
 
-`attachments` is only present when `download: true`. Binary and media URLs stay metadata-only by default; archives are downloaded only when requested and are not auto-extracted.
+## Supported Resources
 
-### Reddit Thread Extraction
+| Resource                  | Behavior                                                                                               |
+| ------------------------- | ------------------------------------------------------------------------------------------------------ |
+| HTML pages                | Extracts readable article content, title, metadata, optional links, and optional media references      |
+| Text and Markdown         | Returns text directly with pagination support                                                          |
+| JSON                      | Pretty-prints JSON when `format` is `json` or text-like when requested                                 |
+| XML and CSV-like text     | Returns as text/data content                                                                           |
+| PDF                       | Extracts text and PDF metadata                                                                         |
+| Images                    | Returns metadata by default; saves the file only with `download: true`                                 |
+| Audio and video           | Returns metadata by default; saves the file only with `download: true`                                 |
+| Archives and binary files | Returns metadata by default; downloads only when explicitly requested; archives are not auto-extracted |
+| Reddit threads            | Uses Reddit JSON endpoints and can include comments with limits                                        |
+
+## Local Downloads
+
+`fetch_url` does not download binary/media files to disk by default. This avoids surprise disk usage and persistent local copies of arbitrary web content.
+
+Use `download: true` when you need the original file available to another tool:
+
+```json
+{
+  "url": "https://httpbin.org/image/png",
+  "format": "metadata",
+  "download": true,
+  "download_ttl_seconds": 86400
+}
+```
+
+Download attachments look like this:
+
+```json
+{
+  "kind": "download",
+  "path": "/tmp/mcp-web-search/downloads/mcp-fetch-id-image.png",
+  "filename": "mcp-fetch-id-image.png",
+  "original_filename": "image.png",
+  "content_type": "image/png",
+  "resource_type": "image",
+  "byte_length": 8090,
+  "sha256": "...",
+  "expires_at": "2026-05-04T00:00:00.000Z"
+}
+```
+
+Download safety behavior:
+
+- Downloads are opt-in only.
+- Files are written with `0600` permissions.
+- Filenames are sanitized and prefixed with a managed artifact ID.
+- SHA-256 is returned for verification.
+- Expired managed artifacts are cleaned up through sidecar metadata.
+- Cleanup only touches managed artifacts inside the configured download directory.
+- Archives are never auto-extracted.
+
+## Reddit Thread Extraction
 
 Reddit thread URLs are handled by a site adapter and fetched through Reddit JSON endpoints.
 
@@ -257,23 +262,31 @@ Input example:
 
 The output uses `resource_type: "site"` and `metadata.extractor: "reddit-thread"`.
 
-## Repository Structure
+Reddit public JSON can still rate-limit or return 403/429 depending on Reddit, subreddit rules, and request frequency. When that happens, retry later or reduce request frequency.
 
-Fetch v2 code is intentionally grouped under `src/fetch/`:
+## Providers
 
-- `src/fetch/types.ts` - Fetch v2 request/result types
-- `src/fetch/http.ts` and `src/fetch/security.ts` - network transport and URL safety
-- `src/fetch/download.ts` - controlled local download artifacts
-- `src/fetch/result.ts` and `src/fetch/truncation.ts` - normalized result envelope and pagination
-- `src/fetch/content/` - shared HTML content helpers such as markdown conversion and readability fallback
-- `src/fetch/extractors/` - MIME/resource extractors for HTML, text/data, PDF, and media metadata
-- `src/fetch/site-adapters/` - domain-specific adapters such as Reddit threads
+| Provider   | API Key Required | Notes                                         |
+| ---------- | ---------------- | --------------------------------------------- |
+| DuckDuckGo | No               | Default, simple, no browser required          |
+| Bing       | No               | Uses Chrome/Chromium through Puppeteer        |
+| SearXNG    | No               | Best option for self-hosted high-volume usage |
 
-Search providers remain separate under `src/providers/`.
+## Environment Variables
+
+| Variable                  | Default                 | Description                                                                                  |
+| ------------------------- | ----------------------- | -------------------------------------------------------------------------------------------- |
+| `DEFAULT_SEARCH_PROVIDER` | `duckduckgo`            | Default search provider: `duckduckgo`, `bing`, or `searxng`                                  |
+| `SEARXNG_URL`             | `http://localhost:8099` | SearXNG instance URL                                                                         |
+| `HTTP_TIMEOUT`            | `15000`                 | Request timeout in milliseconds                                                              |
+| `MAX_BYTES`               | `20971520`              | Maximum fetched response/download size                                                       |
+| `MCP_COMPAT_MODE`         | unset                   | Set to `legacy` to simplify `tools/list` schemas for MCP clients with weak discovery parsers |
 
 ## SearXNG Setup
 
-SearXNG is a free self-hosted meta-search engine. Quick setup with Docker:
+SearXNG is a free self-hosted meta-search engine.
+
+Quick setup with Docker:
 
 ```bash
 mkdir -p ~/docker/searxng
@@ -281,26 +294,86 @@ mkdir -p ~/docker/searxng
 
 Create `~/docker/searxng/settings.yml` with JSON enabled, then run the SearXNG container. The important setting is `search.formats` containing both `html` and `json`.
 
-## SSRF Protection
+Example relevant setting:
 
-`fetch_url` blocks:
+```yaml
+search:
+  formats:
+    - html
+    - json
+```
+
+Then set:
+
+```bash
+export SEARXNG_URL="http://localhost:8099"
+```
+
+## Chrome Setup for Bing Provider
+
+| OS            | Command                             |
+| ------------- | ----------------------------------- |
+| Ubuntu/Debian | `sudo apt install chromium-browser` |
+| Fedora        | `sudo dnf install chromium`         |
+| Arch          | `sudo pacman -S chromium`           |
+| macOS         | `brew install --cask google-chrome` |
+
+Custom path:
+
+```bash
+export CHROME_PATH="/path/to/chrome"
+```
+
+## MCP Discovery Compatibility
+
+Some MCP clients have weak schema parsers and fail during discovery on array-valued JSON Schema nodes such as `enum` or `required`.
+
+If discovery fails, set:
+
+```bash
+export MCP_COMPAT_MODE="legacy"
+```
+
+This only simplifies advertised `tools/list` schemas. Tool execution behavior stays the same.
+
+## URL Safety
+
+`fetch_url` blocks unsafe targets before fetching and before following redirects.
+
+Blocked targets include:
 
 - localhost hostnames
 - `.localhost` and `.local` hostnames
 - private IPv4 ranges
-- loopback and link-local addresses
-- IPv6 loopback, unspecified, unique-local, and link-local addresses
+- IPv4 loopback, link-local, carrier-grade NAT, benchmark, multicast, and selected special-use ranges
+- IPv4-mapped IPv6 addresses that resolve to blocked IPv4 ranges
+- IPv6 loopback, unspecified, unique-local, multicast, and link-local ranges
 - redirects that resolve to blocked addresses
+
+The HTTP transport resolves and validates addresses before connecting, then connects to the vetted address while preserving the original host/SNI for normal HTTPS behavior.
+
+## Repository Structure
+
+- `src/server.ts` - MCP server and tool schemas
+- `src/providers/` - search providers
+- `src/fetch/` - URL/resource loading pipeline
+- `src/fetch/content/` - shared content helpers such as Markdown conversion and readability fallback
+- `src/fetch/extractors/` - resource extractors for HTML, text/data, PDF, and media metadata
+- `src/fetch/site-adapters/` - domain-specific extractors such as Reddit threads
+- `src/utils/` - shared utilities
+- `test/` - Node test runner tests
 
 ## Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| Chrome not found | Install Chrome/Chromium or set `CHROME_PATH` |
-| SearXNG 403 | Enable JSON API in `settings.yml` |
-| Timeout | Increase `HTTP_TIMEOUT` or pass `timeout_ms` |
-| MCP discovery error: `'list' object has no attribute 'get'` | Set `MCP_COMPAT_MODE=legacy` |
-| Reddit 429 | Reddit rate limited the JSON endpoint; retry later or lower frequency |
+| Issue                                                       | Solution                                                                                  |
+| ----------------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| Chrome not found                                            | Install Chrome/Chromium or set `CHROME_PATH`                                              |
+| SearXNG 403                                                 | Enable JSON API in `settings.yml`                                                         |
+| Timeout                                                     | Increase `HTTP_TIMEOUT` or pass `timeout_ms`                                              |
+| MCP discovery error: `'list' object has no attribute 'get'` | Set `MCP_COMPAT_MODE=legacy`                                                              |
+| Reddit 429 or 403                                           | Reddit rate limited or blocked the JSON endpoint; retry later or reduce request frequency |
+| Download missing from output                                | Set `download: true`; downloads are disabled by default                                   |
+| Download rejected as too large                              | Increase `max_download_bytes` within the server cap or raise `MAX_BYTES`                  |
 
 ## License
 

@@ -10,7 +10,7 @@ import { toInt } from "./utils/http.js";
 import { installLegacyToolsListCompat } from "./compat.js";
 
 const DEFAULT_LIMIT = toInt(process.env.MAX_RESULTS, MAX_RESULTS);
-const server = new McpServer({ name: "mcp-web-search", version: "1.2.3" });
+const server = new McpServer({ name: "mcp-web-search", version: "1.3.0" });
 
 server.registerTool(
   "search_web",
